@@ -82,7 +82,8 @@ final case class TeXMuglue(name: String,
 final case class TeXMacro(name: String,
     parameters: List[Parameter],
     replacement: List[Token],
-    long: Boolean) extends ControlSequence {
+    long: Boolean,
+    outer: Boolean) extends ControlSequence {
   val tpe = TeXType.TeXMacro
 }
 

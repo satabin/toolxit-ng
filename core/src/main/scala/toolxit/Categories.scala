@@ -17,7 +17,7 @@ package toolxit
 
 import gnieh.pp._
 
-/** A category in which a character is.
+/** A category code to which a character is associated.
  *
  *  @author Lucas Satabin
  *

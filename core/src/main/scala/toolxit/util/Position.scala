@@ -17,6 +17,21 @@ package toolxit.util
 
 import java.io.File
 
-case class Position(line: Int, column: Int)
+/** A position in a file which is simply a line and a column
+ *
+ *  @author Lucas Satabin
+ */
+case class Position(line: Int, column: Int) {
 
-object NoPosition extends Position(-1, -1)
+  override def toString =
+    s"[$line.$column]"
+
+}
+
+/** The empty position */
+object NoPosition extends Position(-1, -1) {
+
+  override def toString =
+    "<unknown position>"
+
+}

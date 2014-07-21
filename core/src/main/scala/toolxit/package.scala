@@ -16,9 +16,6 @@
 
 import scala.language.implicitConversions
 
-/** @author Lucas Satabin
- *
- */
 package object toolxit {
 
   import dimen._

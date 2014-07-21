@@ -18,4 +18,9 @@ package mouth
 
 import util.Position
 
+/** The only exception thrown by the [[TeXMouth]]. It should always indicate where
+ *  the exception occurred in the current file.
+ *
+ *  @author Lucas Satabin
+ */
 class TeXParsingException(msg: String, location: Position) extends Exception(msg)

@@ -19,79 +19,33 @@ import dimen._
 
 import util.Positional
 
-/** A TeX primitive command.
+/** A TeX command returned by the parser.
+ *  The calling context may decide to interpret as it wishes the commands.
+ *  Basically, the parser returns a character typeset command or a control sequence.
+ *  Parsing-related commands are interpreted directly by the parser and expanded as needed.
+ *  This includes:
+ *   - Macro definition,
+ *   - If/then/else commands,
+ *   - Input command,
+ *   - Character code definition,
+ *   - ...
+ *  Formatting and typesetting commands are left up to the caller.
+ *  This architecture allows for varying tools based on TeX syntax but having different purpose
+ *  than being typesetting system (e.g. a tool to work on the structured document, ...).
  *
  *  @author Lucas Satabin
  *
  */
 sealed trait Command extends Positional
 
-case object CControlSpace extends Command
+/** The most basic command is the typesetting of a character */
+case class CTypeset(what: Char) extends Command
 
-case object CItalicCorrection extends Command
-
-case class CAboveWithDelims(delim1: Token, delim2: Token, dimen: Dimension) extends Command
-
-case class CAccent(accent: Byte, assignments: List[Assignment]) extends Command
-
-case class CAdvance(variable: ControlSequence, by: Int) extends Command
-
-case class CAfterAssignment(token: Token) extends Command
-
-case class CAfterGroup(token: Token) extends Command
-
-case object CBatchMode extends Command
-
-case object CBeginGroup extends Command
-
-case object CBotMark extends Command
-
-case class CBox(register: Byte) extends Command
-
-case class CChar(number: Byte) extends Command
-
-case class CCLeader(boxOrGlue: ControlSequence, glue: ControlSequence) extends Command
-
-case class CCloseIn(number: Byte) extends Command
-
-case class CCloseOut(number: Byte) extends Command
-
-case class CCopy(number: Byte) extends Command
-
-case class CCountDef(name: String, number: Byte) extends Command
-
-case object CCr extends Command
-
-case object CCrCr extends Command
-
-case class CCsName(tokens: List[Token]) extends Command
-
-case class CDef(name: String, modifiers: List[Modifier.Value], parameters: List[Parameter], replacement: List[Token]) extends Command
-
-case class CDelimiter(number: Int) extends Command
-
-case class CDimenDef(name: String, number: Byte) extends Command
-
-case class CDiscretionary(preBreak: List[Token], postBreak: List[Token], noBreak: List[Token]) extends Command
-
-case object CDiplayLimits extends Command
-
-case object CDisplayStyle extends Command
-
-case class CDivide(variable: ControlSequence, by: Option[Int]) extends Command
-
-case object CDump extends Command
-
-case class CEdef(cs: ControlSequence, parameters: List[Parameter], replacement: List[Token]) extends Command
-
-case object CEnd extends Command
-
-case object CEndGroup extends Command
-
-case object CEndInput extends Command
-
-case class CEqNo() extends Command
-
-sealed trait Assignment extends Command
-
-case class Typeset(what: String) extends Command
+/** A control sequence that was not interpreted by the parser.
+ *  It is probably followed by its arguments in the the input stream.
+ *  The caller is responsible for eating undesired tokens from the stream
+ *  after this control sequence even if it is ignored.
+ *
+ *  @author Lucas Satabin
+ */
+case class CControlSequence(name: String) extends Command

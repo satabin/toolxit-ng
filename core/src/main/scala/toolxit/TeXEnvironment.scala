@@ -31,8 +31,6 @@ import scala.collection.mutable.Map
  *  This hierarchy mechanism is fully managed by this class by calling the methods
  *  `enterGroup` and `leaveGroup`.
  *
- *  @see [[toolxit.astex.Category]]
- *
  *  @author Lucas Satabin
  *
  */
@@ -228,7 +226,7 @@ abstract class TeXEnvironment {
               esc + "skip" + number
             case TeXMuglue(_, number) =>
               esc + "muskip" + number
-            case TeXMacro(name, parameters, repl, long) =>
+            case TeXMacro(name, parameters, repl, long, outer) =>
               val params = parameters map {
                 case Left(ParameterToken(n)) =>
                   "#" + n

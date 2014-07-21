@@ -26,7 +26,7 @@ import util._
 
 import scala.annotation.tailrec
 
-/** The TeX eyes as defined in the TeX Book mainly in chapter 8 '''The Characters You Type'''.
+/** The TeX eyes as defined in the ''TeX Book'' mainly in chapter 8 '''The Characters You Type'''.
  *  This is the lexer that generates a stream of TeX tokens out of a character stream.
  *  It uses as input a character stream that is line aware, allowing for better error messages,
  *  because the parsed lines is revognized as it is parsed and can be partially displayed in messages.
