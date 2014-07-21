@@ -40,18 +40,44 @@ import scala.annotation.tailrec
  *
  *  @author Lucas Satabin
  */
-class TeXMouth(protected var env: TeXEnvironment, protected var stream: LineStream) {
+class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream) {
 
   // the current token that is read
   private var token: Option[Token] = None
 
   /** The current reading state. Starts in new line' state */
-  protected var state: ReadingState.Value =
+  private var state: ReadingState.Value =
     ReadingState.N
 
   /** Indicates whether the parser is expanding control sequences */
-  protected var expanding: Boolean =
+  private var expanding: Boolean =
     true
+
+  /** Indicates whether the parser accepts implicit characters */
+  private var implicits: Boolean =
+    true
+
+  /** Execute the given body with the expansion status, and restore the old status afterward */
+  private def withExpansion[T](value: Boolean)(body: =>T): T = {
+    val old = expanding
+    try {
+      expanding = value
+      body
+    } finally {
+      expanding = old
+    }
+  }
+
+  /** Execute the given body with the implicit status, and restore the old status afterward */
+  private def withImplicits[T](value: Boolean)(body: =>T): T = {
+    val old = implicits
+    try {
+      implicits = value
+      body
+    } finally {
+      implicits = old
+    }
+  }
 
   /** Accepts only the given token, and returns it */
   def eat(token: Token): Try[Token] =
@@ -67,7 +93,7 @@ class TeXMouth(protected var env: TeXEnvironment, protected var stream: LineStre
     token = None
 
   /** Returns the next unexpanded token */
-  private def unexpanded(): Try[Token] =
+  private def raw(): Try[Token] =
     token match {
       case Some(token) =>
         Success(token)
@@ -83,25 +109,28 @@ class TeXMouth(protected var env: TeXEnvironment, protected var stream: LineStre
     }
 
   /** Returns the next expanded token */
-  private def expanded(): Try[Token] =
-    unexpanded() flatMap {
-      case ControlSequenceToken(name, _) =>
-        env.css(name) match {
-          case Some(TeXMacro(_, parameters, replacement, long, outer)) =>
-            ???
-          case Some(TeXPrimitive(_)) =>
-            ???
-          case None =>
-            Failure(new ControlSequenceException(s"undefined control sequence `$name`"))
-        }
+  private def expand(cs: ControlSequence): Try[Token] =
+    cs match {
+      case TeXMacro(_, parameters, replacement, long, outer) =>
+        ???
+      case TeXPrimitive(_) =>
+        ???
     }
 
   /** Returns the next token, expanded if necessary */
   def read(): Try[Token] =
-    if(expanding)
-      expanded()
-    else
-      unexpanded()
+    raw().flatMap {
+      case ControlSequenceToken(name, false) if implicits =>
+        // if this control sequence is an alias and implicit characters are allowed,
+        // push its meaning back in the input stream and re-read
+        ???
+      case ControlSequenceToken(name, _) if expanding =>
+        // if it is a macro and we are in expanding mode, expand it
+        ???
+      case t =>
+        // otherwise just return it
+        Success(t)
+    }
 
   /** Parses and returns the next command. Tokens are expanded as needed, and we are ensured to get a typesetting command back */
   @tailrec
@@ -180,7 +209,7 @@ class TeXMouth(protected var env: TeXEnvironment, protected var stream: LineStre
 
     // a macro name is an unexpanded control sequence
     def parseName(): Try[String] =
-      unexpanded().flatMap {
+      read().flatMap {
         case ControlSequenceToken(name, _) =>
           swallow()
           Success(name)
@@ -206,7 +235,7 @@ class TeXMouth(protected var env: TeXEnvironment, protected var stream: LineStre
         } yield (true, false, name, params)
       case ControlSequenceToken("edef", _) =>
         swallow()
-        for{
+        for {
           name <- parseName()
           params <- parseParameters(true)
         } yield (false, true, name, params)
@@ -220,7 +249,7 @@ class TeXMouth(protected var env: TeXEnvironment, protected var stream: LineStre
         Failure(new TeXParsingException(s"Unexpected token when parsing macro declaration $t", t.pos))
     }
 
-    def parseReplacement(expanded: Boolean): Try[List[Token]] =
+    def parseReplacement(): Try[List[Token]] =
       ???
 
     read() flatMap {
@@ -228,10 +257,10 @@ class TeXMouth(protected var env: TeXEnvironment, protected var stream: LineStre
         for {
           // a macro declaration starts with optional modifiers
           (long, outer, global) <- parseModifiers()
-          // then comes the declaration
-          (global, expanded, name, params) <- parseMacroDecl(global)
-          // and the replacement text
-          replacement <- parseReplacement(expanded)
+          // then comes the declaration (and tokens are not expanded during this phase)
+          (global, expanded, name, params) <- withExpansion(false)(parseMacroDecl(global))
+          // and the replacement text expanded only if needed
+          replacement <- withExpansion(expanded)(parseReplacement())
         } yield (global, TeXMacro(name, params, replacement, long, outer))
 
       case t =>

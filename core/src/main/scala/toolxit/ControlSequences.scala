@@ -18,15 +18,16 @@ package toolxit
 import dimen._
 
 /** TeX basically has very few types:
- *   - signed integer
- *   - character
- *   - math character
- *   - dimension
- *   - glue
- *   - muglue
- *   - macro (defined by a user, which is basically a function type)
- *   - token lists
- *   - font
+ *   - signed integer,
+ *   - character,
+ *   - math character,
+ *   - dimension,
+ *   - glue,
+ *   - muglue,
+ *   - macro (defined by a user, which is basically a function type),
+ *   - alias (defined by `\let` or `\futurelet`),
+ *   - token lists,
+ *   - font.
  *
  *  @author Lucas Satabin
  *
@@ -39,6 +40,7 @@ object TeXType extends Enumeration {
   val TeXGlue = Value
   val TeXMuglue = Value
   val TeXMacro = Value
+  val TeXAlias = Value
   val TeXTokenList = Value
   val TeXFont = Value
   val TeXPrimitive = Value
@@ -85,6 +87,16 @@ final case class TeXMacro(name: String,
     long: Boolean,
     outer: Boolean) extends ControlSequence {
   val tpe = TeXType.TeXMacro
+}
+
+final case class TeXCsAlias(name: String,
+    replacement: TeXMacro) extends ControlSequence {
+  val tpe = TeXType.TeXAlias
+}
+
+final case class TeXCharAlias(name: String,
+    replacement: CharacterToken) extends ControlSequence {
+  val tpe = TeXType.TeXAlias
 }
 
 final case class TeXTokenList(name: String,

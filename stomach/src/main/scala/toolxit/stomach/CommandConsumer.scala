@@ -22,6 +22,6 @@ package stomach
  */
 abstract class CommandConsumer {
 
-  def onCommand: PartialFunction[Command, Unit]
+  def foreach(f: Command => Unit): Unit
 
 }
