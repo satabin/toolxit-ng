@@ -21,6 +21,8 @@ import Keys._
 import com.typesafe.sbt.SbtScalariform._
 import scalariform.formatter.preferences._
 
+import sbtunidoc.Plugin._
+
 object ToolXiTBuild extends Build {
 
   lazy val globalSettings = scalariformSettings ++ Seq(
@@ -33,7 +35,9 @@ object ToolXiTBuild extends Build {
 
   lazy val root = Project(id = "toolxit", base = file(".")) settings(
     name := "toolxit"
-  ) aggregate(core, eyes, mouth)
+  ) settings(unidocSettings: _*) settings(
+    scalacOptions in (Compile, doc) ++= Seq("-doc-root-content", "rootdoc.txt")
+  ) settings(globalSettings: _*) aggregate(core, eyes, mouth, stomach)
 
   lazy val scalariformSettings = defaultScalariformSettings ++ Seq(
     ScalariformKeys.preferences :=

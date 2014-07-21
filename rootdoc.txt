@@ -1,0 +1,15 @@
+= ToolXiT =
+
+ToolXiT is a bunch of tools allowing people to work on TeX files.
+
+It consists of several parts that are separated in several packages according
+to their role in processing TeX documents.
+
+== Package Structure ==
+
+These packages are named after the vocabulary used in the ''TeX Book'' by Donald Knuth.
+ - [[toolxit `toolxit`]] is the top-level package containing the utility classes and object that
+   are common to other packages,
+ - [[toolxit.eyes `toolxit.eyes`]] contains the TeX eyes, i.e. the lexer,
+ - [[toolxit.mouth `toolxit.mouth`]] contains the TeX mouth, i.e. the parser that consumes the tokens produced by the eyes,
+ - [[toolxit.stomach `toolxit.stomach`]] contains the TeX stomach, i.e. the part that consumes the commands returned by the mouth.
