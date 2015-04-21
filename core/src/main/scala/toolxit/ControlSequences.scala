@@ -43,7 +43,6 @@ object TeXType extends Enumeration {
   val TeXAlias = Value
   val TeXTokenList = Value
   val TeXFont = Value
-  val TeXPrimitive = Value
 }
 
 sealed trait ControlSequence {
@@ -113,8 +112,4 @@ final case class TeXTokenList(name: String,
 final case class TeXFont(name: String,
     number: Byte) extends ControlSequence {
   val tpe = TeXType.TeXFont
-}
-
-final case class TeXPrimitive(name: String) extends ControlSequence {
-  val tpe = TeXType.TeXPrimitive
 }

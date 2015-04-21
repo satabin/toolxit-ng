@@ -251,8 +251,6 @@ abstract class TeXEnvironment {
               esc + "toks" + number
             case TeXFont(_, number) =>
               ???
-            case TeXPrimitive(name) =>
-              esc + name
             case TeXCharAlias(_, _) | TeXCsAlias(_, _) =>
               throw new TeXException(s"Undefined control sequence \\$name")
           }
@@ -663,9 +661,5 @@ private class RootTeXEnvironment(override val jobname: String) extends TeXEnviro
   category(0) = Category.INVALID_CHARACTER
   category('%') = Category.COMMENT_CHARACTER
   category('\\') = Category.ESCAPE_CHARACTER
-
-  // add all primitive control sequence names
-  for (name <- Primitives.all)
-    css(name) = TeXPrimitive(name)
 
 }

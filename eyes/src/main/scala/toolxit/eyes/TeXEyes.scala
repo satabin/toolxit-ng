@@ -26,6 +26,8 @@ import util._
 
 import scala.annotation.tailrec
 
+import scala.collection.mutable.Stack
+
 /** The TeX eyes as defined in the ''TeX Book'' mainly in chapter 8 '''The Characters You Type'''.
  *  This is the lexer that generates a stream of TeX tokens out of a character stream.
  *  It uses as input a character stream that is line aware, allowing for better error messages,
@@ -33,30 +35,15 @@ import scala.annotation.tailrec
  *
  *  @author Lucas Satabin
  */
-object TeXEyes {
+class TeXEyes(_stream: LineStream) {
 
-  /*def lookahead(state: ReadingState.Value, env: TeXEnvironment, stream: LineStream): Try[Token] =
-    lookahead(1)(state, env, stream).map(_.head)
+  private var state: ReadingState.Value = ReadingState.N
 
-  def lookahead(n: Int)(state: ReadingState.Value, env: TeXEnvironment, stream: LineStream): Try[List[Token]] = {
-    @tailrec
-    def loop(n: Int, state: ReadingState.Value, stream: LineStream, acc: List[Token]): Try[List[Token]] =
-      if(n == 0) {
-        Success(acc.reverse)
-      } else {
-        next(state, env, stream) match {
-          case Success((token, newState, newStream)) =>
-            loop(n - 1, newState, newStream, token :: acc)
-          case Failure(t) =>
-            Failure(t)
-        }
-      }
-    loop(n, state, stream, Nil)
-  }*/
+  private var stream: LineStream = _stream
 
   /** Returns the next token to be read from this input */
   @tailrec
-  def next(state: ReadingState.Value, env: TeXEnvironment, stream: LineStream): Try[(Token, ReadingState.Value, LineStream)] = {
+  final def next(env: TeXEnvironment): Try[Token] = {
     import env._
 
     object ControlSequence {
@@ -67,7 +54,7 @@ object TeXEyes {
             case LETTER(_) => true
             case _         => false
           }
-          Some(csname.mkString(""), rest1)
+          Some(csname.mkString(l.toString, "", ""), rest1)
         case ESCAPE_CHARACTER(_) !:: c !:: rest =>
           // or it starts with an escape character and is followed by one single other character
           Some(c.toString, rest)
@@ -110,47 +97,62 @@ object TeXEyes {
     stream1 match {
       case IGNORED_CHARACTER(_) !:: rest =>
         // the obvious case is to ignore currently ignored characters
-        next(state, env, rest)
+        stream = rest
+        next(env)
       case SPACE(_) !:: rest if state == ReadingState.S || state == ReadingState.N =>
         // when in reading state 'skipping blanks' or 'new line', spaces are ignored as well
-        next(state, env, rest)
+        stream = rest
+        next(env)
       case COMMENT_CHARACTER(_) !:: rest =>
         // when a comment started it lasts until the end of line is reached
         // the end of line character is then eaten as well
-        next(state, env, rest.dropWhile {
+        stream = rest.dropWhile {
           case END_OF_LINE(_) => false
           case _              => true
-        }.tail)
+        }.tail
+        next(env)
       case ACTIVE_CHARACTER(c) !:: rest =>
         // an active character is control sequence, and after control sequence we go into
         // the 'skipping blanks' state
-        Try(ControlSequenceToken(c.toString, true).atPos(stream.lineNum, stream.colNum), ReadingState.S, rest)
+        state = ReadingState.S
+        stream = rest
+        Try(ControlSequenceToken(c.toString, true).atPos(stream.lineNum, stream.colNum))
       case ControlSequence(cs, rest) =>
         // after control sequence we go into the 'skipping blanks' state
-        Try(ControlSequenceToken(cs, false).atPos(stream.lineNum, stream.colNum), ReadingState.S, rest)
+        state = ReadingState.S
+        stream = rest
+        Try(ControlSequenceToken(cs, false).atPos(stream.lineNum, stream.colNum))
       case ESCAPE_CHARACTER(_) !:: LineNil =>
         // we reached end of input, this is absolutely not correct
         Failure(new TeXEyesException(stream.lineNum, stream.colNum, "control sequence name expected but end of input reached"))
       case END_OF_LINE(_) !:: rest if state == ReadingState.N =>
         // when reading end of line and if we are in the 'new line' reading state,
         // this is equivalent to the `\par` control sequence and stay in the same state
-        Try(ControlSequenceToken("par", false).atPos(stream.lineNum, stream.colNum), state, rest)
+        stream = rest
+        Try(ControlSequenceToken("par", false).atPos(stream.lineNum, stream.colNum))
       case END_OF_LINE(_) !:: rest if state == ReadingState.M =>
         // otherwise in any reading state 'middle of line', it is considered as a space and we go into
         // 'new line' reading state
-        Try(CharacterToken(' ', Category.SPACE).atPos(stream.lineNum, stream.colNum), ReadingState.N, rest)
+        state = ReadingState.N
+        stream = rest
+        Try(CharacterToken(' ', Category.SPACE).atPos(stream.lineNum, stream.colNum))
       case END_OF_LINE(_) !:: rest =>
         // otherwise we are skipping blank characters, so just ignore it
-        next(state, env, rest.tail)
+        stream = rest
+        next(env)
       case SPACE(_) !:: rest =>
         // if this is a space character, we go into the 'skipping blanks' reading state
         // the space token is always ' ' even if it were some other characters that
         // was assigned the SPACE category
-        Try(CharacterToken(' ', Category.SPACE).atPos(stream.lineNum, stream.colNum), ReadingState.S, rest)
+        state = ReadingState.S
+        stream = rest
+        Try(CharacterToken(' ', Category.SPACE).atPos(stream.lineNum, stream.colNum))
       case c !:: rest =>
         // otherwise, any other character is returned and we are now in the 'middle of line'
         // reading state
-        Try(CharacterToken(c, category(c)).atPos(stream.lineNum, stream.colNum), ReadingState.M, rest)
+        state = ReadingState.M
+        stream = rest
+        Try(CharacterToken(c, category(c)).atPos(stream.lineNum, stream.colNum))
       case LineNil =>
         // we read an unexpected character at this point
         Failure(EOIException(stream.lineNum, stream.colNum))

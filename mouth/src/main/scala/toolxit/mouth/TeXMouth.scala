@@ -42,7 +42,7 @@ import scala.collection.mutable.Stack
  *
  *  @author Lucas Satabin
  */
-class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream)
+class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
     extends TeXParameters
     with TeXInternals
     with TeXNumbers {
@@ -51,9 +51,8 @@ class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream)
   private val tokens: Stack[Token] =
     Stack.empty[Token]
 
-  /** The current reading state. Starts in new line' state */
-  private var state: ReadingState.Value =
-    ReadingState.N
+  /** the input stream to read */
+  private val eyes = new TeXEyes(stream)
 
   /** Indicates whether the parser is expanding control sequences */
   private var expanding: Boolean =
@@ -66,8 +65,8 @@ class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream)
   private object Primitive {
     def unapply(cs: ControlSequenceToken): Option[String] =
       env.css(cs.name) match {
-        case Some(TeXPrimitive(name)) => Some(name)
-        case Some(_) | None           => None
+        case Some(_) => None
+        case None    => Some(cs.name)
       }
   }
 
@@ -111,13 +110,10 @@ class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream)
   /** Returns the next unexpanded token */
   final def raw(): Try[Token] =
     if (tokens.isEmpty) {
-      TeXEyes.next(state, env, stream) map {
-        case (token, newState, newStream) =>
-          state = newState
-          stream = newStream
-          // create a new token stack with the one we just read
-          tokens.push(token)
-          token
+      eyes.next(env) map { token =>
+        // create a new token stack with the one we just read
+        tokens.push(token)
+        token
       }
     } else {
       Success(tokens.head)
@@ -144,8 +140,6 @@ class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream)
           read()
 
         }
-      case TeXPrimitive(_) =>
-        ???
       case _ =>
         ???
     }
