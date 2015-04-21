@@ -17,19 +17,28 @@ package toolxit.util
 
 import java.io.File
 
+sealed trait Position
+
 /** A position in a file which is simply a line and a column
  *
  *  @author Lucas Satabin
  */
-case class Position(line: Int, column: Int) {
+case class SimplePosition(line: Int, column: Int) extends Position {
 
   override def toString =
-    s"[$line.$column]"
+    f"[$line.$column]"
+
+}
+
+case class StackedPosition(line: Int, column: Int, next: Position) extends Position {
+
+  override def toString =
+    f"[$line.$column] expanded from position $next"
 
 }
 
 /** The empty position */
-object NoPosition extends Position(-1, -1) {
+object NoPosition extends Position {
 
   override def toString =
     "<unknown position>"
