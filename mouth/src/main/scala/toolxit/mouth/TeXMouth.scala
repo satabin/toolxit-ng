@@ -42,7 +42,10 @@ import scala.collection.mutable.Stack
  *
  *  @author Lucas Satabin
  */
-class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream) {
+class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream)
+    extends TeXParameters
+    with TeXInternals
+    with TeXNumbers {
 
   // the current stack of tokens that are read or expanded
   private val tokens: Stack[Token] =
@@ -69,7 +72,7 @@ class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream) 
   }
 
   /** Execute the given body with the expansion status, and restore the old status afterward */
-  private def withExpansion[T](value: Boolean)(body: =>T): T = {
+  final def withExpansion[T](value: Boolean)(body: => T): T = {
     val old = expanding
     try {
       expanding = value
@@ -80,7 +83,7 @@ class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream) 
   }
 
   /** Execute the given body with the implicit status, and restore the old status afterward */
-  private def withImplicits[T](value: Boolean)(body: =>T): T = {
+  final def withImplicits[T](value: Boolean)(body: => T): T = {
     val old = implicits
     try {
       implicits = value
@@ -102,12 +105,12 @@ class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream) 
 
   /** Pops the first token out of the stack if any */
   def swallow(): Unit =
-    if(tokens.nonEmpty)
+    if (tokens.nonEmpty)
       tokens.pop
 
   /** Returns the next unexpanded token */
-  private def raw(): Try[Token] =
-    if(tokens.isEmpty) {
+  final def raw(): Try[Token] =
+    if (tokens.isEmpty) {
       TeXEyes.next(state, env, stream) map {
         case (token, newState, newStream) =>
           state = newState
@@ -121,7 +124,7 @@ class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream) 
     }
 
   /** Returns the next expanded token */
-  private def expand(cs: ControlSequence): Try[Token] =
+  final def expand(cs: ControlSequence): Try[Token] =
     cs match {
       case TeXMacro(_, parameters, replacement, long, outer) =>
         // consume the macro name name
@@ -190,35 +193,79 @@ class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream) 
 
   /** Parses and returns the next command. Tokens are expanded as needed, and we are ensured to get a typesetting command back */
   @tailrec
-  final def parseCommand(): Try[Command] = read() match {
-    case Success(char @ CharacterToken(c, _)) =>
-      // This will probably be the case most of the time,
-      // the command is simply to type set some character.
-      Success(CTypeset(c).atPos(char.pos))
+  final def parseCommand(): Try[Command] =
+    parseModifiers() match {
+      case Success((long, outer, global)) =>
+        read() match {
+          case Success(char @ CharacterToken(c, _)) =>
+            if (long || outer || global) {
+              Failure(new TeXParsingException(s"You cannot use a prefix with `the letter $c'", char.pos))
+            } else {
+              // This will probably be the case most of the time,
+              // the command is simply to type set some character.
+              Success(CTypeset(c).atPos(char.pos))
+            }
 
-    case Success(Primitive("def" | "gdef" | "edef" | "xdef" | "outer" | "long" | "global")) =>
-      // define a new macro, register it and parse next command
-      parseMacroDef() match {
-        case Success((global, m)) =>
-          if(global)
-            // register the macro in global scope
-            env.css.global(m.name) = m
-          else
-            // register the macro in local scope
-            env.css(m.name) = m
-          parseCommand()
-        case Failure(t) =>
-          Failure(t)
-      }
+          case Success(Primitive("def" | "gdef" | "edef" | "xdef")) =>
+            // define a new macro, register it and parse next command
+            parseMacroDef(long, outer, global) match {
+              case Success((global, m)) =>
+                if (global)
+                  // register the macro in global scope
+                  env.css.global(m.name) = m
+                else
+                  // register the macro in local scope
+                  env.css(m.name) = m
+                parseCommand()
+              case Failure(t) =>
+                Failure(t)
+            }
 
-    case Success(cs @ ControlSequenceToken(name, _)) =>
-      Success(CControlSequence(name).atPos(cs.pos))
+          case Success(cs @ ControlSequenceToken(name, _)) =>
+            Success(CControlSequence(name).atPos(cs.pos))
 
-    case Success(t) =>
-      Failure(new TeXParsingException(s"Unexpected token $t instead of a TeX command", t.pos))
+          case Success(t) =>
+            Failure(new TeXParsingException(s"Unexpected token $t instead of a TeX command", t.pos))
+
+          case Failure(t) =>
+            Failure(t)
+        }
+      case Failure(t) =>
+        Failure(t)
+    }
+
+  // This parsing method is not implemented with `flatMap` to allow
+  // for tail-recursion. I am not sure whether this is a useful optimization
+  // in this case but I can imagine scenarios in which the expansion process
+  // may introduce a lot of successive modifiers and where it could be helpful
+  // to spare stack.
+  // The main drawback in writing this method with a match instead of a `flatMap`
+  // is that we have to pattern-match `Failure` and build it back to type-check.
+  // Moreover, we also must extract the `Success` constructor.
+  // Well, that's still ok I guess, if this turns out to be armful, it will be easy
+  // to change this to use `flatMap`
+  @tailrec
+  final def parseModifiers(long: Boolean = false,
+    outer: Boolean = false,
+    global: Boolean = false): Try[(Boolean, Boolean, Boolean)] = read() match {
+    case Success(ControlSequenceToken("long", _)) =>
+      swallow()
+      parseModifiers(true, outer, global)
+
+    case Success(ControlSequenceToken("outer", _)) =>
+      swallow()
+      parseModifiers(long, true, global)
+
+    case Success(ControlSequenceToken("global", _)) =>
+      swallow()
+      parseModifiers(long, outer, true)
+
+    case Success(_) =>
+      Success(long, outer, global)
 
     case Failure(t) =>
       Failure(t)
+
   }
 
   /** Parses the definition of a new macro.
@@ -227,41 +274,7 @@ class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream) 
    *  <macro def> ::= \def <control sequence> <parameter text> { <replacement text> }
    *  }}}
    */
-  def parseMacroDef(): Try[(Boolean, TeXMacro)] = {
-
-    // This parsing method is not implemented with `flatMap` to allow
-    // for tail-recursion. I am not sure whether this is a useful optimization
-    // in this case but I can imagine scenarios in which the expansion process
-    // may introduce a lot of successive modifiers and where it could be helpful
-    // to spare stack.
-    // The main drawback in writing this method with a match instead of a `flatMap`
-    // is that we have to pattern-match `Failure` and build it back to type-check.
-    // Moreover, we also must extract the `Success` constructor.
-    // Well, that's still ok I guess, if this turns out to be armful, it will be easy
-    // to change this to use `flatMap`
-    @tailrec
-    def parseModifiers(long: Boolean = false,
-      outer: Boolean = false,
-      global: Boolean = false): Try[(Boolean, Boolean, Boolean)] = read() match {
-      case Success(ControlSequenceToken("long", _)) =>
-        swallow()
-        parseModifiers(true, outer, global)
-
-      case Success(ControlSequenceToken("outer", _)) =>
-        swallow()
-        parseModifiers(long, true, global)
-
-      case Success(ControlSequenceToken("global", _)) =>
-        swallow()
-        parseModifiers(long, outer, true)
-
-      case Success(_) =>
-        Success(long, outer, global)
-
-      case Failure(t) =>
-        Failure(t)
-
-    }
+  def parseMacroDef(long: Boolean, outer: Boolean, global: Boolean): Try[(Boolean, TeXMacro)] = {
 
     // a macro name is an unexpanded control sequence
     def parseName(): Try[String] =
@@ -346,18 +359,16 @@ class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream) 
     def parseReplacement(appendBrace: Boolean): Try[List[Token]] =
       parseGroup(true, false).map {
         case GroupToken(_, tokens, _) =>
-          if(appendBrace)
+          if (appendBrace)
             CharacterToken('{', Category.BEGINNING_OF_GROUP) :: tokens
           else
             tokens
       }
 
     read() flatMap {
-      case ControlSequenceToken("def" | "gdef" | "edef" | "xdef" | "long" | "outer" | "global", _) =>
+      case ControlSequenceToken("def" | "gdef" | "edef" | "xdef", _) =>
         for {
-          // a macro declaration starts with optional modifiers
-          (long, outer, global) <- parseModifiers()
-          // then comes the declaration (and tokens are not expanded during this phase)
+          // first comes the declaration (and tokens are not expanded during this phase)
           (global, expanded, name, params, appendBrace) <- withExpansion(false)(parseMacroDecl(global))
           // and the replacement text expanded only if needed
           replacement <- withExpansion(expanded)(parseReplacement(appendBrace))
@@ -407,7 +418,7 @@ class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream) 
         // closing the top-level group, this is an exit condition, consume the token
         swallow()
         // and return the built group
-        if(reverted)
+        if (reverted)
           Success(GroupToken(open, acc, tok))
         else
           Success(GroupToken(open, acc.reverse, tok))
@@ -445,5 +456,58 @@ class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream) 
     }
 
   }
+
+  /** Reads an space character (with category code SPACE). */
+  final def parseOptSpace(): Try[Option[CharacterToken]] =
+    read() match {
+      case Success(c @ CharacterToken(_, Category.SPACE)) =>
+        swallow()
+        Success(Some(c))
+      case Success(_) =>
+        Success(None)
+      case Failure(t) =>
+        Failure(t)
+    }
+
+  /** Reads zero or more space characters (with category code SPACE). */
+  @tailrec
+  final def parseSpaces(): Try[Unit] =
+    read() match {
+      case Success(CharacterToken(_, Category.SPACE)) =>
+        swallow()
+        parseSpaces()
+      case Success(_) =>
+        Success(())
+      case Failure(t) =>
+        Failure(t)
+    }
+
+  /** Reads a keyword of the form:
+   *  {{{
+   *  <keyword(name)> ::= <space>* <name>
+   *  }}}
+   */
+  final def keyword(name: String): Try[List[CharacterToken]] =
+    parseSpaces() match {
+      case Success(()) =>
+        @tailrec
+        def loop(name: String, acc: List[CharacterToken]): Try[List[CharacterToken]] =
+          if (name.isEmpty) {
+            Success(acc.reverse)
+          } else {
+            read() match {
+              case Success(char @ CharacterToken(c, _)) if c.toLower == name.charAt(0).toLower =>
+                swallow()
+                loop(name.substring(1), char :: acc)
+              case Success(t) =>
+                Failure(new TeXParsingException(s"Expected ${name.charAt(0)} but $t found", t.pos))
+              case Failure(t) =>
+                Failure(t)
+            }
+          }
+        withImplicits(false)(loop(name, Nil))
+      case Failure(t) =>
+        Failure(t)
+    }
 
 }

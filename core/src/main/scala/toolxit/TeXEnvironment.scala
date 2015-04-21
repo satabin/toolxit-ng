@@ -237,7 +237,7 @@ abstract class TeXEnvironment {
                 case ParameterToken(n) =>
                   "#" + n
                 case ControlSequenceToken(name, active) =>
-                  if(active)
+                  if (active)
                     name
                   else
                     esc + name

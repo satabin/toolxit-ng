@@ -14,15 +14,15 @@
 * limitations under the License.
 */
 package toolxit
+package mouth
 
-package object mouth {
+import scala.util.{
+  Try,
+  Failure,
+  Success
+}
 
-  private[mouth] object int {
-    def unapply(c: Char): Option[Int] =
-      if (c >= '0' && c <= '9')
-        Some(c - '0')
-      else
-        None
-  }
+trait TeXInternals {
+  this: TeXMouth =>
 
 }
