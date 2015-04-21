@@ -483,6 +483,20 @@ abstract class TeXEnvironment {
   protected[this] val muglues = Map.empty[Byte, Muglue]
   // TODO other register types
 
+  // the different flags used to tune the expansion mechanism
+
+  private var flags: Long = 0x0000000000000000l
+  val DEBUG_POSITION = 0x0000000000000001l
+
+  def debugPositions: Boolean =
+    (flags & DEBUG_POSITION) != 0x0
+
+  def debugPositions_=(b: Boolean): Unit =
+    if(b)
+      flags = flags | DEBUG_POSITION
+    else
+      flags = flags ^ DEBUG_POSITION
+
 }
 
 object TeXEnvironment {

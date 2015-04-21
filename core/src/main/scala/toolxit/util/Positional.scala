@@ -22,18 +22,13 @@ trait Positional {
   def pos: Position =
     _pos
 
-  def atPos(line: Int, column: Int, next: Option[Position] = None): this.type = next match {
+  def atPos(p: Position, next: Option[Position] = None): this.type = next match {
     case Some(next) =>
-      _pos = StackedPosition(line, column, next)
+      _pos = StackedPosition(p, next)
       this
     case None =>
-      _pos = SimplePosition(line, column)
+      _pos = p
       this
-  }
-
-  def atPos(p: Position): this.type = {
-    _pos = p
-    this
   }
 
 }

@@ -23,4 +23,4 @@ import util.Position
  *
  *  @author Lucas Satabin
  */
-class TeXParsingException(msg: String, location: Position) extends Exception(msg)
+class TeXMouthException(msg: String, location: Position) extends Exception(msg)

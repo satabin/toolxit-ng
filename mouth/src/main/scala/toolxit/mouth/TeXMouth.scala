@@ -52,7 +52,8 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
     Stack.empty[Token]
 
   /** the input stream to read */
-  private val eyes = new TeXEyes(stream)
+  private val eyes =
+    new TeXEyes(stream)
 
   /** Indicates whether the parser is expanding control sequences */
   private var expanding: Boolean =
@@ -93,13 +94,13 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
   }
 
   /** Accepts only the given token, and returns it */
-  def eat(token: Token): Try[Token] =
-    read() flatMap {
+  def eat(token: Token): Try[Unit] =
+    raw() flatMap {
       case t if t == token =>
         swallow()
-        Success(t)
+        Success(())
       case t =>
-        Failure(new TeXParsingException(s"expected $token, but found $t", t.pos))
+        Failure(new TeXMouthException(f"expected $token, but found $t", t.pos))
     }
 
   /** Pops the first token out of the stack if any */
@@ -120,7 +121,7 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
     }
 
   /** Returns the next expanded token */
-  final def expand(cs: ControlSequence): Try[Token] =
+  final def expand(cs: ControlSequence, pos: Position): Try[Token] =
     cs match {
       case TeXMacro(_, parameters, replacement, long, outer) =>
         // consume the macro name name
@@ -132,7 +133,12 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
           replacement.foreach {
             case ParameterToken(i) =>
               // by construction (with the parser) the parameter exists
-              tokens.pushAll(args(i))
+              val arg =
+                if(env.debugPositions)
+                  args(i).map(a => a.atPos(pos, Some(a.pos)))
+                else
+                  args(i)
+              tokens.pushAll(arg)
             case token =>
               tokens.push(token)
           }
@@ -160,10 +166,10 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
             Success(token)
           case Some(TeXCsAlias(_, m)) =>
             // this is a macro, expand it
-            expand(m)
+            expand(m, token.pos)
           case Some(cs) if expanding =>
             // go through normal expansion process
-            expand(cs)
+            expand(cs, token.pos)
           case Some(_) | None =>
             // unknown control sequence or no expansion, return it as is
             Success(token)
@@ -174,7 +180,7 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
         env.css(name) match {
           case Some(cs) =>
             // expand it if found
-            expand(cs)
+            expand(cs, token.pos)
           case None =>
             // otherwise return it
             Success(token)
@@ -193,7 +199,7 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
         read() match {
           case Success(char @ CharacterToken(c, _)) =>
             if (long || outer || global) {
-              Failure(new TeXParsingException(s"You cannot use a prefix with `the letter $c'", char.pos))
+              Failure(new TeXMouthException(f"You cannot use a prefix with `the letter $c'", char.pos))
             } else {
               // This will probably be the case most of the time,
               // the command is simply to type set some character.
@@ -219,7 +225,7 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
             Success(CControlSequence(name).atPos(cs.pos))
 
           case Success(t) =>
-            Failure(new TeXParsingException(s"Unexpected token $t instead of a TeX command", t.pos))
+            Failure(new TeXMouthException(f"Unexpected token $t instead of a TeX command", t.pos))
 
           case Failure(t) =>
             Failure(t)
@@ -277,7 +283,7 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
           swallow()
           Success(name)
         case t =>
-          Failure(new TeXParsingException(s"Macro name must be a control sequence or an active character", t.pos))
+          Failure(new TeXMouthException(f"Macro name must be a control sequence or an active character", t.pos))
       }
 
     def parseParameters(): Try[(Boolean, List[Token])] = withImplicits(true) {
@@ -299,7 +305,7 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
               Success(true, (tok :: acc).reverse)
             case Success(tok) =>
               // wrong parameter number
-              Failure(new TeXParsingException(s"Parameters must be numbered consecutively. Got $tok but expected $nextParam", tok.pos))
+              Failure(new TeXMouthException(f"Parameters must be numbered consecutively. Got $tok but expected $nextParam", tok.pos))
           }
 
         case Success(CharacterToken(_, Category.BEGINNING_OF_GROUP)) =>
@@ -308,7 +314,7 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
 
         case Success(tok @ ControlSequenceToken(name, _)) if env.css.isOuter(name) =>
           // macro declared as `outer' are not allowed in the parameter text
-          Failure(new TeXParsingException(s"Macro $name declared as `\\outer` is not allowed in parameter text", tok.pos))
+          Failure(new TeXMouthException(f"Macro $name declared as `\\outer` is not allowed in parameter text", tok.pos))
 
         case Success(token) =>
           // any other character is added to the current list of parameters
@@ -347,7 +353,7 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
           (appendBrace, params) <- parseParameters()
         } yield (true, true, name, params, appendBrace)
       case t =>
-        Failure(new TeXParsingException(s"Unexpected token when parsing macro declaration $t", t.pos))
+        Failure(new TeXMouthException(f"Unexpected token when parsing macro declaration $t", t.pos))
     }
 
     def parseReplacement(appendBrace: Boolean): Try[List[Token]] =
@@ -369,7 +375,7 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
         } yield (global, TeXMacro(name, params, replacement, long, outer))
 
       case t =>
-        Failure(new TeXParsingException(s"Unexpected token when parsing macro declaration $t", t.pos))
+        Failure(new TeXMouthException(f"Unexpected token when parsing macro declaration $t", t.pos))
 
     }
 
@@ -380,12 +386,60 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
    *  that was parsed during the macro definition.
    *  If the macro is declared as `long`, then `\par` is allowed
    *  to appear as argument. In any cases, `outer` macros are not allowed
-   *  to appear in the argumetns.
+   *  to appear in the arguments.
    *  Arguments are returned in order, but the tokens of each argument are returned in
    *  reverse order.
    */
-  def parseArguments(long: Boolean, parameters: List[Token]): Try[Vector[List[Token]]] =
-    ???
+  final def parseArguments(long: Boolean, parameters: List[Token]): Try[List[List[Token]]] = {
+    @tailrec
+    def loop(parameters: List[Token], stop: Option[Token], localAcc: List[Token], acc: List[List[Token]]): Try[List[List[Token]]] = stop match {
+      case Some(stop) =>
+        // we must read until the stop token has been reached
+        // if the macro was declared as long, then \par is allowed.
+        raw() match {
+          case Success(tok @ ControlSequenceToken(name, _)) if env.css.isOuter(name) =>
+            Failure(new TeXMouthException("Outer macros are not authorized in macro parameterf", tok.pos))
+          case Success(tok @ ControlSequenceToken("par", _)) if !long =>
+            Failure(new TeXMouthException("Runaway argument. new paragraph is not allowed in the parameter list", tok.pos))
+          case Success(tok) if tok == stop =>
+            loop(parameters, None, Nil, localAcc :: acc)
+          case Success(tok) =>
+            loop(parameters, Some(stop), tok :: localAcc, acc)
+          case Failure(t) =>
+            Failure(t)
+        }
+      case None =>
+        parameters match {
+          case Nil =>
+            Success(acc.reverse)
+          case ParameterToken(_) :: rest =>
+            rest match {
+              case Nil | ParameterToken(_) :: _ =>
+                // an undelimited parameter
+                raw() match {
+                  case Success(t) =>
+                    loop(rest, None, Nil, List(t) :: acc)
+                  case Failure(t) =>
+                    Failure(t)
+                }
+              case token :: rest =>
+                loop(rest, Some(token), Nil, acc)
+            }
+          case (token @ (ControlSequenceToken(_, _) | CharacterToken(_, _))) :: rest =>
+            // this is a delimiter token, accept it and go forward
+            eat(token) match {
+              case Success(()) =>
+                loop(rest, None, Nil, acc)
+              case Failure(t) =>
+                Failure(t)
+            }
+          case (token @ GroupToken(_, _, _)) :: _ =>
+            Failure(new TeXMouthException("Groups are not allowed in macro parameter listf", token.pos))
+        }
+
+    }
+    loop(parameters, None, Nil, Nil)
+  }
 
   /** Parses a correctly nested group of the form:
    *  {{{
@@ -425,7 +479,7 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
 
       case Success(tok @ ControlSequenceToken(name, _)) if !allowOuter && env.css.isOuter(name) =>
         // macro declared as `outer' are not allowed in the parameter text
-        Failure(new TeXParsingException(s"Macro $name declared as `\\outer` is not allowed in parameter text", tok.pos))
+        Failure(new TeXMouthException(f"Macro $name declared as `\\outer` is not allowed in parameter text", tok.pos))
 
       case Success(tok) =>
         // any other character is consumed
@@ -446,7 +500,7 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
         loop(0, tok, Nil)
       case tok =>
         // this is not an opening group, meaning, this is an error
-        Failure(new TeXParsingException(s"Beginning of group character expected but $tok found", tok.pos))
+        Failure(new TeXMouthException(f"Beginning of group character expected but $tok found", tok.pos))
     }
 
   }
@@ -494,7 +548,7 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
                 swallow()
                 loop(name.substring(1), char :: acc)
               case Success(t) =>
-                Failure(new TeXParsingException(s"Expected ${name.charAt(0)} but $t found", t.pos))
+                Failure(new TeXMouthException(f"Expected ${name.charAt(0)} but $t found", t.pos))
               case Failure(t) =>
                 Failure(t)
             }

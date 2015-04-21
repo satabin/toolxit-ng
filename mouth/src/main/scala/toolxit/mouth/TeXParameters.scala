@@ -30,7 +30,7 @@ trait TeXParameters {
       case Success(cs @ ControlSequenceToken(name, false)) if Primitives.integerParameter.contains(name) =>
         Success(cs)
       case Success(tok) =>
-        Failure(new TeXParsingException(s"Integer parameter expected but $tok found", tok.pos))
+        Failure(new TeXMouthException(s"Integer parameter expected but $tok found", tok.pos))
       case Failure(t) =>
         Failure(t)
     }
@@ -40,7 +40,7 @@ trait TeXParameters {
       case Success(cs @ ControlSequenceToken(name, false)) if Primitives.dimenParameter.contains(name) =>
         Success(cs)
       case Success(tok) =>
-        Failure(new TeXParsingException(s"Dimension parameter expected but $tok found", tok.pos))
+        Failure(new TeXMouthException(s"Dimension parameter expected but $tok found", tok.pos))
       case Failure(t) =>
         Failure(t)
     }
@@ -50,7 +50,7 @@ trait TeXParameters {
       case Success(cs @ ControlSequenceToken(name, false)) if Primitives.glueParameter.contains(name) =>
         Success(cs)
       case Success(tok) =>
-        Failure(new TeXParsingException(s"Glue parameter expected but $tok found", tok.pos))
+        Failure(new TeXMouthException(s"Glue parameter expected but $tok found", tok.pos))
       case Failure(t) =>
         Failure(t)
     }
@@ -60,7 +60,7 @@ trait TeXParameters {
       case Success(cs @ ControlSequenceToken(name, false)) if Primitives.muglueParameter.contains(name) =>
         Success(cs)
       case Success(tok) =>
-        Failure(new TeXParsingException(s"Muglue parameter expected but $tok found", tok.pos))
+        Failure(new TeXMouthException(s"Muglue parameter expected but $tok found", tok.pos))
       case Failure(t) =>
         Failure(t)
     }
@@ -70,7 +70,7 @@ trait TeXParameters {
       case Success(cs @ ControlSequenceToken(name, false)) if Primitives.tokenParameter.contains(name) =>
         Success(cs)
       case Success(tok) =>
-        Failure(new TeXParsingException(s"Token parameter expected but $tok found", tok.pos))
+        Failure(new TeXMouthException(s"Token parameter expected but $tok found", tok.pos))
       case Failure(t) =>
         Failure(t)
     }

@@ -39,7 +39,7 @@ trait TeXNumbers {
         swallow()
         Success(-1)
       case tok =>
-        Failure(new TeXParsingException(s"Plus or minus expected but $tok found", tok.pos))
+        Failure(new TeXMouthException(s"Plus or minus expected but $tok found", tok.pos))
     }
 
   /** Parses zero or more signs and returns the resulting sign:
@@ -98,7 +98,7 @@ trait TeXNumbers {
       case CharacterToken(c, Category.OTHER_CHARACTER) if c.isDigit =>
         Success(c - 48)
       case tok =>
-        Failure(new TeXParsingException(s"Digit expected but $tok found", tok.pos))
+        Failure(new TeXMouthException(s"Digit expected but $tok found", tok.pos))
     }
 
   def parseOctalDigit(): Try[Int] =
@@ -106,7 +106,7 @@ trait TeXNumbers {
       case CharacterToken(c, Category.OTHER_CHARACTER) if c - 48 >= 0 && c - 48 < 8 =>
         Success(c - 48)
       case tok =>
-        Failure(new TeXParsingException(s"Octal digit expected but $tok found", tok.pos))
+        Failure(new TeXMouthException(s"Octal digit expected but $tok found", tok.pos))
     }
 
   def parseHexDigit(): Try[Int] =
@@ -116,7 +116,7 @@ trait TeXNumbers {
       case CharacterToken(c, Category.OTHER_CHARACTER | Category.LETTER) if c - 65 >= 0 && c - 65 < 6 =>
         Success(c - 65)
       case tok =>
-        Failure(new TeXParsingException(s"Octal digit expected but $tok found", tok.pos))
+        Failure(new TeXMouthException(s"Octal digit expected but $tok found", tok.pos))
     }
 
 }

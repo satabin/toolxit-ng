@@ -48,13 +48,13 @@ class TeXEyes(_stream: LineStream) {
 
     object ControlSequence {
       def unapply(str: LineStream): Option[(String, LineStream)] = str match {
-        case ESCAPE_CHARACTER(_) !:: LETTER(l) !:: rest =>
+        case ESCAPE_CHARACTER(_) !:: (rest @ (LETTER(_) !:: _)) =>
           // a control sequence starts with an escape character and is followed by letters
           val (csname: LineStream, rest1: LineStream) = rest.span {
             case LETTER(_) => true
             case _         => false
           }
-          Some(csname.mkString(l.toString, "", ""), rest1)
+          Some(csname.mkString(""), rest1)
         case ESCAPE_CHARACTER(_) !:: c !:: rest =>
           // or it starts with an escape character and is followed by one single other character
           Some(c.toString, rest)
@@ -116,12 +116,12 @@ class TeXEyes(_stream: LineStream) {
         // the 'skipping blanks' state
         state = ReadingState.S
         stream = rest
-        Try(ControlSequenceToken(c.toString, true).atPos(stream.lineNum, stream.colNum))
+        Try(ControlSequenceToken(c.toString, true).atPos(SimplePosition(stream.lineNum, stream.colNum)))
       case ControlSequence(cs, rest) =>
         // after control sequence we go into the 'skipping blanks' state
         state = ReadingState.S
         stream = rest
-        Try(ControlSequenceToken(cs, false).atPos(stream.lineNum, stream.colNum))
+        Try(ControlSequenceToken(cs, false).atPos(SimplePosition(stream.lineNum, stream.colNum)))
       case ESCAPE_CHARACTER(_) !:: LineNil =>
         // we reached end of input, this is absolutely not correct
         Failure(new TeXEyesException(stream.lineNum, stream.colNum, "control sequence name expected but end of input reached"))
@@ -129,13 +129,13 @@ class TeXEyes(_stream: LineStream) {
         // when reading end of line and if we are in the 'new line' reading state,
         // this is equivalent to the `\par` control sequence and stay in the same state
         stream = rest
-        Try(ControlSequenceToken("par", false).atPos(stream.lineNum, stream.colNum))
+        Try(ControlSequenceToken("par", false).atPos(SimplePosition(stream.lineNum, stream.colNum)))
       case END_OF_LINE(_) !:: rest if state == ReadingState.M =>
         // otherwise in any reading state 'middle of line', it is considered as a space and we go into
         // 'new line' reading state
         state = ReadingState.N
         stream = rest
-        Try(CharacterToken(' ', Category.SPACE).atPos(stream.lineNum, stream.colNum))
+        Try(CharacterToken(' ', Category.SPACE).atPos(SimplePosition(stream.lineNum, stream.colNum)))
       case END_OF_LINE(_) !:: rest =>
         // otherwise we are skipping blank characters, so just ignore it
         stream = rest
@@ -146,13 +146,13 @@ class TeXEyes(_stream: LineStream) {
         // was assigned the SPACE category
         state = ReadingState.S
         stream = rest
-        Try(CharacterToken(' ', Category.SPACE).atPos(stream.lineNum, stream.colNum))
+        Try(CharacterToken(' ', Category.SPACE).atPos(SimplePosition(stream.lineNum, stream.colNum)))
       case c !:: rest =>
         // otherwise, any other character is returned and we are now in the 'middle of line'
         // reading state
         state = ReadingState.M
         stream = rest
-        Try(CharacterToken(c, category(c)).atPos(stream.lineNum, stream.colNum))
+        Try(CharacterToken(c, category(c)).atPos(SimplePosition(stream.lineNum, stream.colNum)))
       case LineNil =>
         // we read an unexpected character at this point
         Failure(EOIException(stream.lineNum, stream.colNum))

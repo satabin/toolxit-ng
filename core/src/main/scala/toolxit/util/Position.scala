@@ -30,10 +30,10 @@ case class SimplePosition(line: Int, column: Int) extends Position {
 
 }
 
-case class StackedPosition(line: Int, column: Int, next: Position) extends Position {
+case class StackedPosition(current: Position, next: Position) extends Position {
 
   override def toString =
-    f"[$line.$column] expanded from position $next"
+    f"$current expanded from position $next"
 
 }
 
