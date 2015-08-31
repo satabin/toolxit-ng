@@ -31,8 +31,7 @@ import scala.collection.mutable.Stack
 
 /** The TeX mouth is a parser from tokens produced by the [[toolxit.eyes.TeXEyes]]
  *  and produces in turn commands that can be digested by the stomach.
- *  This parser interpretes all primitive TeX commands that directly impacts the parsing
- *  of the rest itself.
+ *  This parser interpretes all primitive TeX commands that define new macros, counters, or change internal quantities.
  *  These commands include (but are not limited to):
  *   - Macro definitions,
  *   - If/then/else commands,
@@ -40,16 +39,33 @@ import scala.collection.mutable.Stack
  *   - Character code definition,
  *   - ...
  *
+ *  Control sequences are reduced until no more macro with the given name exists.
+ *  The result is that the parser always returns either a character typesetting command, or a control sequence that corresponds to
+ *  something that is no macro or interpreted counter, quantity, ...
+ *  It is up to the consumer to determine what to do with the result, whether more arguments are expected or
+ *  the control sequence is unknown or it simply queries the next token.
+ *
  *  @author Lucas Satabin
  */
-class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
-    extends TeXParameters
+class TeXMouth(private var _env: TeXEnvironment, stream: LineStream)
+    extends TeXMacros
+    with TeXParameters
     with TeXInternals
-    with TeXNumbers {
+    with TeXNumbers
+    with TeXDimensions {
+
+  def env = _env
+
+  private def env_=(e: TeXEnvironment): Unit =
+    _env = e
 
   // the current stack of tokens that are read or expanded
   private val tokens: Stack[Token] =
     Stack.empty[Token]
+
+  /** Pushes the given sequence back in reverse order into the input token stream */
+  protected[this] def pushback(rev: Seq[Token]): Unit =
+    tokens.pushAll(rev)
 
   /** the input stream to read */
   private val eyes =
@@ -59,15 +75,21 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
   private var expanding: Boolean =
     true
 
-  /** Indicates whether the parser accepts implicit characters */
-  private var implicits: Boolean =
-    true
-
-  private object Primitive {
+  protected[this] object Primitive {
     def unapply(cs: ControlSequenceToken): Option[String] =
       env.css(cs.name) match {
         case Some(_) => None
         case None    => Some(cs.name)
+      }
+  }
+
+  protected[this] object If {
+    def unapply(t: Token): Option[Token] =
+      t match {
+        case ControlSequenceToken(i, _) if env.isIf(i) =>
+          Some(t)
+        case _ =>
+          None
       }
   }
 
@@ -79,17 +101,6 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
       body
     } finally {
       expanding = old
-    }
-  }
-
-  /** Execute the given body with the implicit status, and restore the old status afterward */
-  final def withImplicits[T](value: Boolean)(body: => T): T = {
-    val old = implicits
-    try {
-      implicits = value
-      body
-    } finally {
-      implicits = old
     }
   }
 
@@ -151,30 +162,8 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
     }
 
   /** Returns the next token, expanded if necessary */
-  def read(): Try[Token] =
+  protected[this] def read(): Try[Token] =
     raw().flatMap {
-      case token @ ControlSequenceToken(name, false) if implicits =>
-        // if this control sequence is an alias and implicit characters are allowed,
-        // push its meaning back in the input stream and re-read
-        env.css(name) match {
-          case Some(TeXCharAlias(_, token)) =>
-            // consume it
-            swallow()
-            // push the replacement token onto the token stack
-            tokens.push(token)
-            // and return it
-            Success(token)
-          case Some(TeXCsAlias(_, m)) =>
-            // this is a macro, expand it
-            expand(m, token.pos)
-          case Some(cs) if expanding =>
-            // go through normal expansion process
-            expand(cs, token.pos)
-          case Some(_) | None =>
-            // unknown control sequence or no expansion, return it as is
-            Success(token)
-        }
-
       case token @ ControlSequenceToken(name, _) if expanding =>
         // if it is a macro and we are in expanding mode, expand it
         env.css(name) match {
@@ -268,119 +257,6 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
 
   }
 
-  /** Parses the definition of a new macro.
-   *  A macro definition is something that looks like:
-   *  {{{
-   *  <macro def> ::= \def <control sequence> <parameter text> { <replacement text> }
-   *  }}}
-   */
-  def parseMacroDef(long: Boolean, outer: Boolean, global: Boolean): Try[(Boolean, TeXMacro)] = {
-
-    // a macro name is an unexpanded control sequence
-    def parseName(): Try[String] =
-      read().flatMap {
-        case ControlSequenceToken(name, _) =>
-          swallow()
-          Success(name)
-        case t =>
-          Failure(new TeXMouthException(f"Macro name must be a control sequence or an active character", t.pos))
-      }
-
-    def parseParameters(): Try[(Boolean, List[Token])] = withImplicits(true) {
-      @tailrec
-      def loop(nextParam: Int, acc: List[Token]): Try[(Boolean, List[Token])] = read() match {
-        case Success(CharacterToken(_, Category.PARAMETER)) =>
-          // here comes a parameter, we expect the correct number afterward
-          swallow()
-          read() match {
-            case Success(CharacterToken(int(i), _)) if i == nextParam =>
-              // this is a correct parameter consume its number
-              swallow()
-              // and go forward
-              loop(nextParam + 1, ParameterToken(i) :: acc)
-            case Success(tok @ CharacterToken(_, Category.BEGINNING_OF_GROUP)) =>
-              // this is the `#{` sequence at the end of the parameter list
-              // a kind of special sequence which inserts a `{' at both the end of the parameter
-              // list and the replacement text
-              Success(true, (tok :: acc).reverse)
-            case Success(tok) =>
-              // wrong parameter number
-              Failure(new TeXMouthException(f"Parameters must be numbered consecutively. Got $tok but expected $nextParam", tok.pos))
-          }
-
-        case Success(CharacterToken(_, Category.BEGINNING_OF_GROUP)) =>
-          // we reached the end of the parameter list return it
-          Success(false, acc.reverse)
-
-        case Success(tok @ ControlSequenceToken(name, _)) if env.css.isOuter(name) =>
-          // macro declared as `outer' are not allowed in the parameter text
-          Failure(new TeXMouthException(f"Macro $name declared as `\\outer` is not allowed in parameter text", tok.pos))
-
-        case Success(token) =>
-          // any other character is added to the current list of parameters
-          swallow()
-          loop(nextParam, token :: acc)
-
-        case Failure(t) =>
-          Failure(t)
-      }
-      loop(1, Nil)
-    }
-
-    def parseMacroDecl(global: Boolean): Try[(Boolean, Boolean, String, List[Token], Boolean)] = read() flatMap {
-      case ControlSequenceToken("def", _) =>
-        swallow()
-        for {
-          name <- parseName()
-          (appendBrace, params) <- parseParameters()
-        } yield (global, false, name, params, appendBrace)
-      case ControlSequenceToken("gdef", _) =>
-        swallow()
-        for {
-          name <- parseName()
-          (appendBrace, params) <- parseParameters()
-        } yield (true, false, name, params, appendBrace)
-      case ControlSequenceToken("edef", _) =>
-        swallow()
-        for {
-          name <- parseName()
-          (appendBrace, params) <- parseParameters()
-        } yield (false, true, name, params, appendBrace)
-      case ControlSequenceToken("xdef", _) =>
-        swallow()
-        for {
-          name <- parseName()
-          (appendBrace, params) <- parseParameters()
-        } yield (true, true, name, params, appendBrace)
-      case t =>
-        Failure(new TeXMouthException(f"Unexpected token when parsing macro declaration $t", t.pos))
-    }
-
-    def parseReplacement(appendBrace: Boolean): Try[List[Token]] =
-      parseGroup(true, false).map {
-        case GroupToken(_, tokens, _) =>
-          if (appendBrace)
-            CharacterToken('{', Category.BEGINNING_OF_GROUP) :: tokens
-          else
-            tokens
-      }
-
-    read() flatMap {
-      case ControlSequenceToken("def" | "gdef" | "edef" | "xdef", _) =>
-        for {
-          // first comes the declaration (and tokens are not expanded during this phase)
-          (global, expanded, name, params, appendBrace) <- withExpansion(false)(parseMacroDecl(global))
-          // and the replacement text expanded only if needed
-          replacement <- withExpansion(expanded)(parseReplacement(appendBrace))
-        } yield (global, TeXMacro(name, params, replacement, long, outer))
-
-      case t =>
-        Failure(new TeXMouthException(f"Unexpected token when parsing macro declaration $t", t.pos))
-
-    }
-
-  }
-
   /** Parses the arguments of the given TeX macro.
    *  The parser parses according to the parameter text
    *  that was parsed during the macro definition.
@@ -390,7 +266,7 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
    *  Arguments are returned in order, but the tokens of each argument are returned in
    *  reverse order.
    */
-  final def parseArguments(long: Boolean, parameters: List[Token]): Try[List[List[Token]]] = {
+  private def parseArguments(long: Boolean, parameters: List[Token]): Try[List[List[Token]]] = {
     @tailrec
     def loop(parameters: List[Token], stop: Option[Token], localAcc: List[Token], acc: List[List[Token]]): Try[List[List[Token]]] = stop match {
       case Some(stop) =>
@@ -553,7 +429,7 @@ class TeXMouth(private var env: TeXEnvironment, stream: LineStream)
                 Failure(t)
             }
           }
-        withImplicits(false)(loop(name, Nil))
+        loop(name, Nil)
       case Failure(t) =>
         Failure(t)
     }

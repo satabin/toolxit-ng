@@ -201,6 +201,8 @@ abstract class TeXEnvironment {
   /** The current escape character */
   var escapechar: Char
 
+  def isIf(name: String): Boolean
+
   /** Returns the meaning of the given token in the current environment */
   def meaning(token: Token): String = token match {
     case CharacterToken(c, Category.BEGINNING_OF_GROUP) =>
@@ -250,7 +252,7 @@ abstract class TeXEnvironment {
             case TeXTokenList(_, number) =>
               esc + "toks" + number
             case TeXFont(_, number) =>
-              ???
+              esc + "font" + number
             case TeXCharAlias(_, _) | TeXCsAlias(_, _) =>
               throw new TeXException(s"Undefined control sequence \\$name")
           }
@@ -481,6 +483,8 @@ abstract class TeXEnvironment {
   // glues and muglues are the triple (dimension, stretch, shrink)
   protected[this] val glues = Map.empty[Byte, Glue]
   protected[this] val muglues = Map.empty[Byte, Muglue]
+  // contains user defined ifs in this scope
+  protected[this] val ifs = Map.empty[String, Boolean]
   // TODO other register types
 
   // the different flags used to tune the expansion mechanism
@@ -523,6 +527,9 @@ private class SubTeXEnvironment(parent: TeXEnvironment) extends TeXEnvironment {
 
   def leaveGroup: TeXEnvironment =
     parent
+
+  def isIf(name: String): Boolean =
+    ifs.contains(name) || parent.isIf(name)
 
   object category extends Category {
 
@@ -609,6 +616,9 @@ private class RootTeXEnvironment(override val jobname: String) extends TeXEnviro
 
   def leaveGroup: TeXEnvironment =
     throw new TeXInternalException("Cannot leave group when in top-level environment")
+
+  def isIf(name: String): Boolean =
+    ifs.contains(name) || Primitives.isIf(name)
 
   object category extends Category {
 

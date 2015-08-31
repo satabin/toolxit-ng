@@ -29,7 +29,7 @@ object ToolXiTBuild extends Build {
     organization := "org.gnieh",
     version := "0.1.0-SNAPSHOT",
     resolvers += "Sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/",
-    scalaVersion := "2.11.1",
+    scalaVersion := "2.11.7",
     scalacOptions ++= Seq("-deprecation", "-feature")
   )
 

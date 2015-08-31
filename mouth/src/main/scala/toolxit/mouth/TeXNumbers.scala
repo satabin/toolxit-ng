@@ -28,7 +28,7 @@ trait TeXNumbers {
   this: TeXMouth =>
 
   def parseNumber(): Try[Int] =
-    ???
+    parseSigns()
 
   def parsePlusOrMinus(): Try[Int] =
     read() flatMap {
