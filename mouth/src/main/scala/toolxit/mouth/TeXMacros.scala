@@ -204,24 +204,34 @@ trait TeXMacros {
           t <- read()
         } yield t
 
+      case ControlSequenceToken("ifcase", _) =>
+        swallow()
+        for {
+          n <- parseNumber()
+          () <- parseCaseBody(n)
+          t <- read()
+        } yield t
+
       case t =>
         Failure(new TeXMouthException("if construct expected", t.pos))
     }
 
-  private def parseRel[T <% Ordered[T]](): Try[(T, T) => Boolean] =
+  private def parseRel[T: Ordering](): Try[(T, T) => Boolean] = {
+    val ordering = implicitly[Ordering[T]]
     read() flatMap {
       case CharacterToken('<', Category.OTHER_CHARACTER) =>
         swallow()
-        Success((_ < _))
+        Success(ordering.lt)
       case CharacterToken('>', Category.OTHER_CHARACTER) =>
         swallow()
-        Success((_ > _))
+        Success(ordering.gt)
       case CharacterToken('=', Category.OTHER_CHARACTER) =>
         swallow()
-        Success((_ == _))
+        Success(ordering.equiv)
       case t =>
         Failure(new TeXMouthException("Integer relation operator expected", t.pos))
     }
+  }
 
   /* if the condition is `true`, we keep the (unexpanded) tokens until the next matching
    * `\else` or `\fi`. Otherwise, skip the first branch and keep the (unexpanded) tokens until the next matching `\fi`.
@@ -275,6 +285,63 @@ trait TeXMacros {
     } else {
       pushback(e)
     }
+  }
+
+  private def parseCaseBody(n: Int): Try[Unit] = withExpansion(false) {
+    import scala.collection.mutable.Builder
+    @tailrec
+    def parseCases(lvl: Int, acc: Builder[List[Token], Vector[List[Token]]], current: List[Token]): Try[Vector[List[Token]]] =
+      read() match {
+        case Success(ControlSequenceToken("else" | "fi", _)) if lvl == 0 =>
+          current match {
+            case Nil =>
+              Success(acc.result)
+            case _ =>
+              Success((acc +=current).result)
+          }
+        case Success(t @ ControlSequenceToken("fi", _)) =>
+          swallow()
+          parseCases(lvl - 1, acc, t :: current)
+        case Success(If(t)) =>
+          swallow()
+          parseCases(lvl + 1, acc, t :: current)
+        case Success(ControlSequenceToken("or", _)) =>
+          // drop the or
+          swallow()
+          parseCases(lvl, acc += current, Nil)
+        case Success(t) =>
+          swallow()
+          parseCases(lvl, acc, t :: current)
+        case Failure(t) =>
+          Failure(t)
+      }
+    @tailrec
+    def parseElse(lvl: Int, acc: List[Token]): Try[List[Token]] =
+      read() match {
+        case Success(ControlSequenceToken("else", _)) if lvl == 0 =>
+          // drop the else
+          swallow()
+          parseElse(lvl, acc)
+        case Success(ControlSequenceToken("fi", _)) if lvl == 0 =>
+          swallow()
+          Success(acc)
+        case Success(t @ ControlSequenceToken("fi", _)) =>
+          swallow()
+          parseElse(lvl - 1, t :: acc)
+        case Success(If(t)) =>
+          swallow()
+          parseElse(lvl + 1, t :: acc)
+        case Success(t) =>
+          swallow()
+          parseElse(lvl, t :: acc)
+        case Failure(t) =>
+          Failure(t)
+      }
+
+    for {
+      cs <- parseCases(0, Vector.newBuilder[List[Token]], Nil)
+      e <- parseElse(0, Nil)
+    } yield cs.applyOrElse(n, e)
   }
 
 }
