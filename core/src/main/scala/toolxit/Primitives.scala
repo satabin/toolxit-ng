@@ -62,7 +62,7 @@ object Primitives {
     "input",
     // end of input file
     "endinput",
-    // the magic and power `the` command
+    // the magical and powerful `the` command
     "the")
 
   /** Indicates whether the given control sequence name is a primitive if control sequence */

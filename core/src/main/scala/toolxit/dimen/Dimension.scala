@@ -42,24 +42,24 @@ object Dimension {
   // cc -> cicero (1 cc = 12 dd)
   // sp -> scaled point (65536 sp = 1 pt)
 
-  def ofPoint(point: Float): Dimension = Dimension((65536f * point).toInt)
+  def ofPoint(point: Double): Dimension = Dimension((65536f * point).toInt)
 
-  def ofPica(pica: Float): Dimension = ofPoint(12f * pica)
+  def ofPica(pica: Double): Dimension = ofPoint(12f * pica)
 
-  def ofInch(in: Float): Dimension = ofPoint(72.27f * in)
+  def ofInch(in: Double): Dimension = ofPoint(72.27f * in)
 
-  def ofBigPoint(bp: Float): Dimension = ofInch(bp / 72f)
+  def ofBigPoint(bp: Double): Dimension = ofInch(bp / 72f)
 
-  def ofCentimeter(cm: Float): Dimension = ofInch(cm / 2.54f)
+  def ofCentimeter(cm: Double): Dimension = ofInch(cm / 2.54f)
 
-  def ofMillimeter(mm: Float): Dimension = ofCentimeter(mm / 10f)
+  def ofMillimeter(mm: Double): Dimension = ofCentimeter(mm / 10f)
 
-  def ofDidotPoint(dd: Float): Dimension = ofPoint(dd * 1238f / 1157f)
+  def ofDidotPoint(dd: Double): Dimension = ofPoint(dd * 1238f / 1157f)
 
-  def ofCicero(cc: Float): Dimension = ofDidotPoint(cc * 12f)
+  def ofCicero(cc: Double): Dimension = ofDidotPoint(cc * 12f)
 
   def \(name: String) = 0
 
 }
 
-case class FilDimension(factor: Float, fil: FilUnit)
+case class FilDimension(factor: Double, fil: FilUnit)

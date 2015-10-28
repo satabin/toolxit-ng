@@ -15,8 +15,6 @@
 */
 package toolxit
 
-import scala.language.implicitConversions
-
 /** @author Lucas Satabin
  *
  */
@@ -25,7 +23,7 @@ package object dimen {
   /** Special dimension, which is zero */
   val ZeroDimen = Dimension(0)
 
-  implicit def int2dimen(i: Int) = {
+  implicit class IntDimen(val i: Int) extends AnyVal {
 
     def sp = Dimension(i)
 
@@ -47,7 +45,7 @@ package object dimen {
 
   }
 
-  implicit def float2dimen(f: Float) = {
+  implicit class DoubleDimen(val f: Double) extends AnyVal {
 
     def sp = Dimension(f.toInt)
 
