@@ -16,12 +16,33 @@
 package toolxit
 package stomach
 
-/** Consumes the the stream of commands sent produced by the [[toolxit.mouth.TeXMouth]].
- *
- *  @author Lucas Satabin
- */
-abstract class CommandConsumer {
+import eyes._
+import mouth._
+import util._
 
-  def foreach(f: Command => Unit): Unit
+import scala.util.{
+  Try,
+  Failure
+}
+
+abstract class TeXChewer[Out] {
+
+  val mouth: TeXMouth
+
+  val env = mouth.env
+
+  private def toStream[T](t: Try[T]): Stream[Try[T]] =
+    t match {
+      case Failure(_: EOIException) => Eos
+      case t                        => Chunk(List(t))
+    }
+
+  private[this] def command: Stream[Try[Command]] =
+    toStream(mouth.parseCommand)
+
+  private[this] def number: Stream[Try[Int]] =
+    toStream(mouth.parseNumber)
+
+  def chew: Iteratee[Command, Try, Out]
 
 }
