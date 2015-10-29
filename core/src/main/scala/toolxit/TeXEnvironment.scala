@@ -228,12 +228,19 @@ abstract class TeXEnvironment {
               esc + "muskip" + number
             case TeXMacro(name, parameters, repl, long, outer) =>
               val params = parameters map {
-                case Left(ParameterToken(n)) =>
+                case ParameterToken(n) =>
                   "#" + n
-                case Right(tokens) =>
-                  tokens.map(toString).mkString
+                case ControlSequenceToken(name, active) =>
+                  if(active)
+                    name
+                  else
+                    esc + name
+                case CharacterToken(c, _) =>
+                  c.toString
+                case t =>
+                  throw new TeXException(s"unexpected token $t in control sequence paramters")
               }
-              "macro:" + params + "->" + repl.map(toString).mkString
+              "macro:" + params + "->" + repl.reverseMap(toString).mkString
             case TeXTokenList(_, number) =>
               esc + "toks" + number
             case TeXFont(_, number) =>

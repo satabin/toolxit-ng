@@ -35,7 +35,7 @@ import scala.annotation.tailrec
  */
 object TeXEyes {
 
-  def lookahead(state: ReadingState.Value, env: TeXEnvironment, stream: LineStream): Try[Token] =
+  /*def lookahead(state: ReadingState.Value, env: TeXEnvironment, stream: LineStream): Try[Token] =
     lookahead(1)(state, env, stream).map(_.head)
 
   def lookahead(n: Int)(state: ReadingState.Value, env: TeXEnvironment, stream: LineStream): Try[List[Token]] = {
@@ -52,7 +52,7 @@ object TeXEyes {
         }
       }
     loop(n, state, stream, Nil)
-  }
+  }*/
 
   /** Returns the next token to be read from this input */
   @tailrec

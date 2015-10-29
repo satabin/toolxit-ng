@@ -24,7 +24,7 @@ import dimen._
  *   - dimension,
  *   - glue,
  *   - muglue,
- *   - macro (defined by a user, which is basically a function type),
+ *   - macro (defined by the user),
  *   - alias (defined by `\let` or `\futurelet`),
  *   - token lists,
  *   - font.
@@ -81,8 +81,13 @@ final case class TeXMuglue(name: String,
   val tpe = TeXType.TeXMuglue
 }
 
+/** This control sequence represents a macro with a parameter sequence and a replacement text.
+ *  It is expected for the replacement text to be a list of the body tokens in reverse order.
+ *  This may seem odd at first sight, but it relies on the fact that these tokens will be
+ *  pushed back onto a stack, and that the efficient implementation pushes a sequence in
+ *  its order, so that the last elements of the sequence will be the on top of the stack */
 final case class TeXMacro(name: String,
-    parameters: List[Parameter],
+    parameters: List[Token],
     replacement: List[Token],
     long: Boolean,
     outer: Boolean) extends ControlSequence {
