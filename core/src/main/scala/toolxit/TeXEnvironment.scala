@@ -99,6 +99,12 @@ abstract class TeXEnvironment {
      */
     def apply(name: String): Option[ControlSequence]
 
+    /** Indicates whether the given name is a macro declared as `\outer` */
+    def isOuter(name: String): Boolean =
+      apply(name).collect {
+        case TeXMacro(_, _, _, _, outer) => outer
+      }.getOrElse(false)
+
     /** Indicates whether the current environment contains a definition with the given name */
     def contains(name: String): Boolean =
       apply(name).isDefined
@@ -238,7 +244,7 @@ abstract class TeXEnvironment {
                 case CharacterToken(c, _) =>
                   c.toString
                 case t =>
-                  throw new TeXException(s"unexpected token $t in control sequence paramters")
+                  throw new TeXException(s"unexpected token $t in control sequence parameters")
               }
               "macro:" + params + "->" + repl.reverseMap(toString).mkString
             case TeXTokenList(_, number) =>
@@ -247,6 +253,8 @@ abstract class TeXEnvironment {
               ???
             case TeXPrimitive(name) =>
               esc + name
+            case TeXCharAlias(_, _) | TeXCsAlias(_, _) =>
+              throw new TeXException(s"Undefined control sequence \\$name")
           }
         case None =>
           // unknown control sequence in this environment, undefined

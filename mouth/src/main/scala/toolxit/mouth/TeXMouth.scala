@@ -277,14 +277,18 @@ class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream) 
               // a kind of special sequence which inserts a `{' at both the end of the parameter
               // list and the replacement text
               Success(true, (tok :: acc).reverse)
-            case Success(tok @ CharacterToken(c, _)) =>
+            case Success(tok) =>
               // wrong parameter number
-              Failure(new TeXParsingException(s"Parameters must be numbered consecutively. Got $c but expected $nextParam", tok.pos))
+              Failure(new TeXParsingException(s"Parameters must be numbered consecutively. Got $tok but expected $nextParam", tok.pos))
           }
 
         case Success(CharacterToken(_, Category.BEGINNING_OF_GROUP)) =>
           // we reached the end of the parameter list return it
           Success(false, acc.reverse)
+
+        case Success(tok @ ControlSequenceToken(name, _)) if env.css.isOuter(name) =>
+          // macro declared as `outer' are not allowed in the parameter text
+          Failure(new TeXParsingException(s"Macro $name declared as `\\outer` is not allowed in parameter text", tok.pos))
 
         case Success(token) =>
           // any other character is added to the current list of parameters
@@ -327,7 +331,7 @@ class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream) 
     }
 
     def parseReplacement(appendBrace: Boolean): Try[List[Token]] =
-      parseGroup(true).map {
+      parseGroup(true, false).map {
         case GroupToken(_, tokens, _) =>
           if(appendBrace)
             CharacterToken('{', Category.BEGINNING_OF_GROUP) :: tokens
@@ -361,8 +365,11 @@ class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream) 
    *  order.
    *  This is particularily useful when parsing the replacement text of a macro because
    *  the token list is saved in reverse order for efficiency reasons.
+   *  The `allowOuter` parameter indicates whether control sequence declared as `outer` are allowed in
+   *  this group.
+   *  Typically, when parsing a group as a replacement text of a macro definition, they are not allowed.
    */
-  def parseGroup(reverted: Boolean): Try[GroupToken] = {
+  def parseGroup(reverted: Boolean, allowOuter: Boolean): Try[GroupToken] = {
     @tailrec
     def loop(level: Int, open: Token, acc: List[Token]): Try[GroupToken] = read() match {
       case Success(tok @ CharacterToken(_, Category.BEGINNING_OF_GROUP)) =>
@@ -385,6 +392,10 @@ class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream) 
         swallow()
         // and continue, adding it to the accumulator
         loop(level - 1, open, tok :: acc)
+
+      case Success(tok @ ControlSequenceToken(name, _)) if !allowOuter && env.css.isOuter(name) =>
+        // macro declared as `outer' are not allowed in the parameter text
+        Failure(new TeXParsingException(s"Macro $name declared as `\\outer` is not allowed in parameter text", tok.pos))
 
       case Success(tok) =>
         // any other character is consumed
