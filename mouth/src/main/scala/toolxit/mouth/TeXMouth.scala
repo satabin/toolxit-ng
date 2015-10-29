@@ -127,7 +127,20 @@ class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream) 
         // consume the macro name name
         swallow()
         // parse the arguments
-        ???
+        parseArguments(long, parameters) flatMap { args =>
+          // we then push back the replacement text onto the token stack
+          // replacing as it goes the parameters by the parsed ones.
+          replacement.foreach {
+            case ParameterToken(i) =>
+              // by construction (with the parser) the parameter exists
+              tokens.pushAll(args(i))
+            case token =>
+              tokens.push(token)
+          }
+          // and read again
+          read()
+
+        }
       case TeXPrimitive(_) =>
         ???
       case _ =>
@@ -356,6 +369,18 @@ class TeXMouth(private var env: TeXEnvironment, private var stream: LineStream) 
     }
 
   }
+
+  /** Parses the arguments of the given TeX macro.
+   *  The parser parses according to the parameter text
+   *  that was parsed during the macro definition.
+   *  If the macro is declared as `long`, then `\par` is allowed
+   *  to appear as argument. In any cases, `outer` macros are not allowed
+   *  to appear in the argumetns.
+   *  Arguments are returned in order, but the tokens of each argument are returned in
+   *  reverse order.
+   */
+  def parseArguments(long: Boolean, parameters: List[Token]): Try[Vector[List[Token]]] =
+    ???
 
   /** Parses a correctly nested group of the form:
    *  {{{
