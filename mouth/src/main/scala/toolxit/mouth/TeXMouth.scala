@@ -235,6 +235,8 @@ class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
                 expandNumber()
               case "string" =>
                 expandString()
+              case "meaning" =>
+                expandMeaning()
               case _ =>
                 // otherwise return it
                 swallow()

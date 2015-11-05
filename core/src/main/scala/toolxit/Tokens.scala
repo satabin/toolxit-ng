@@ -22,6 +22,7 @@ import gnieh.pp._
 /** TeX works with a token stream */
 sealed trait Token extends Positional {
   def debug: Doc
+  def toString(env: TeXEnvironment): String
 }
 
 /** A character token read as input. It may be one of the following tokens:
@@ -47,6 +48,7 @@ sealed trait Token extends Positional {
  */
 case class CharacterToken(value: Char, category: Category.Value) extends Token {
   lazy val debug = "Character(" :: value :: ")[" :: Category.debug(category) :: "]"
+  def toString(env: TeXEnvironment) = value.toString
 }
 
 /** A control sequence token has not category.
@@ -55,6 +57,7 @@ case class CharacterToken(value: Char, category: Category.Value) extends Token {
  */
 case class ControlSequenceToken(name: String, active: Boolean = false) extends Token {
   lazy val debug = "ControlSequence(" :: name :: ")"
+  def toString(env: TeXEnvironment) = f"${env.escapechar}$name"
 }
 
 /** A parameter token may only occur in the parameter or replacement text
@@ -64,6 +67,7 @@ case class ControlSequenceToken(name: String, active: Boolean = false) extends T
  */
 case class ParameterToken(number: Int) extends Token {
   lazy val debug = "Parameter(" :: number :: ")"
+  def toString(env: TeXEnvironment) = f"#$number"
 }
 
 /** A bunch of token nested between a token of category BEGINNING_OF_GROUP and
@@ -79,4 +83,5 @@ case class GroupToken(open: Token, inner: List[Token], close: Token) extends Tok
       }
     } :: ")"
   }
+  def toString(env: TeXEnvironment) = f"$open${inner.reverseMap(_.toString(env)).mkString}"
 }

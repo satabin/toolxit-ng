@@ -434,6 +434,16 @@ trait TeXMacros {
       CharacterToken(('0' + (n % 10)).toChar, Category.OTHER_CHARACTER) :: toTokens(negative, n / 10)
     }
 
+  // the result is in reverse order, so that it can be pushed back directly on the token stack
+  private def toTokens(s: String): List[Token] =
+    s.foldLeft(List.empty[Token]) { (acc, c) =>
+      if(c.isWhitespace) {
+        CharacterToken(c, Category.SPACE) :: acc
+      } else {
+        CharacterToken(c, Category.OTHER_CHARACTER) :: acc
+      }
+    }
+
   def expandNumber(): Try[Token] =
     raw() match {
       case Success(ControlSequenceToken("number", _)) =>
@@ -477,6 +487,68 @@ trait TeXMacros {
         }
       case Success(t) =>
         Failure(new TeXMouthException("expected \\number command", t.pos))
+      case f =>
+        f
+    }
+
+  private def meaning(t: Token) = t match {
+    case CharacterToken(c, Category.ESCAPE_CHARACTER) =>
+      toTokens(f"escape character $c")
+    case CharacterToken(c, Category.BEGINNING_OF_GROUP) =>
+      toTokens(f"begin-group character $c")
+    case CharacterToken(c, Category.END_OF_GROUP) =>
+      toTokens(f"end-group character $c")
+    case CharacterToken(c, Category.MATH_SHIFT) =>
+      toTokens(f"math shift character $c")
+    case CharacterToken(c, Category.ALIGNMENT_TAB) =>
+      toTokens(f"alignment tab character $c")
+    case CharacterToken(c, Category.END_OF_LINE) =>
+      toTokens(f"end-of-line character $c")
+    case CharacterToken(c, Category.PARAMETER) =>
+      toTokens(f"macro parameter character $c")
+    case CharacterToken(c, Category.SUPERSCRIPT) =>
+      toTokens(f"superscript character $c")
+    case CharacterToken(c, Category.SUBSCRIPT) =>
+      toTokens(f"subscript character $c")
+    case CharacterToken(c, Category.IGNORED_CHARACTER) =>
+      toTokens(f"ignored character character $c")
+    case CharacterToken(c, Category.SPACE) =>
+      toTokens(f"space character character $c")
+    case CharacterToken(c, Category.LETTER) =>
+      toTokens(f"the letter $c")
+    case CharacterToken(c, Category.OTHER_CHARACTER) =>
+      toTokens(f"the character $c")
+    case CharacterToken(c, Category.ACTIVE_CHARACTER) =>
+      toTokens(f"active character $c")
+    case CharacterToken(c, Category.COMMENT_CHARACTER) =>
+      toTokens(f"comment character $c")
+    case CharacterToken(c, Category.INVALID_CHARACTER) =>
+      toTokens(f"invalid character $c")
+    case ControlSequenceToken(n, _) =>
+      env.css(n) match {
+        case Some(TeXMacro(name, parameters, replacement, _, _)) =>
+          toTokens(f"macro:${parameters.map(_.toString(env)).mkString}->${replacement.reverseMap(_.toString(env)).mkString}")
+        case Some(_) =>
+          toTokens(f"${env.escapechar}$n")
+        case None =>
+          toTokens("undefined")
+      }
+    case _ =>
+      throw new TeXInternalException("this case should never occur.")
+  }
+
+  def expandMeaning(): Try[Token] =
+    raw() match {
+      case Success(ControlSequenceToken("meaning", _)) =>
+        swallow()
+        for {
+          token <- raw()
+          () = swallow()
+          () = pushback(meaning(token))
+          t <- read()
+        } yield t
+      case Success(t) =>
+        Failure(new TeXMouthException("expected \\meaning command", t.pos))
       case f =>
         f
     }
