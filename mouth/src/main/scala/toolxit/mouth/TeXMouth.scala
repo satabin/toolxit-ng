@@ -170,36 +170,6 @@ class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
       Success(tokens.head)
     }
 
-  /** Returns the next expanded token */
-  final def expand(cs: ControlSequence, pos: Position): Try[Token] =
-    cs match {
-      case TeXMacro(_, parameters, replacement, long, outer) =>
-        // consume the macro name name
-        swallow()
-        // parse the arguments
-        parseArguments(long, parameters) flatMap { args =>
-          // we then push back the replacement text onto the token stack
-          // replacing as it goes the parameters by the parsed ones.
-          replacement.foreach {
-            case ParameterToken(i) =>
-              // by construction (with the parser) the parameter exists
-              val arg =
-                if(env.debugPositions)
-                  args(i).map(a => a.atPos(pos, Some(a.pos)))
-                else
-                  args(i)
-              tokens.pushAll(arg)
-            case token =>
-              tokens.push(token)
-          }
-          // and read again
-          read()
-
-        }
-      case _ =>
-        ???
-    }
-
   /** Returns the next token, expanded if necessary */
   protected[this] def read(): Try[Token] =
     raw().flatMap {
@@ -208,7 +178,7 @@ class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
         env.css(name) match {
           case Some(cs) =>
             // expand it if found
-            expand(cs, token.pos)
+            expandCs(cs, token.pos)
           case None =>
             // check for primitive control sequence expansions
             name match {
@@ -237,6 +207,8 @@ class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
                 expandString()
               case "meaning" =>
                 expandMeaning()
+              case "csname" =>
+                expandCsname()
               case _ =>
                 // otherwise return it
                 swallow()
@@ -324,66 +296,6 @@ class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
     case Failure(t) =>
       Failure(t)
 
-  }
-
-  /** Parses the arguments of the given TeX macro.
-   *  The parser parses according to the parameter text
-   *  that was parsed during the macro definition.
-   *  If the macro is declared as `long`, then `\par` is allowed
-   *  to appear as argument. In any cases, `outer` macros are not allowed
-   *  to appear in the arguments.
-   *  Arguments are returned in order, but the tokens of each argument are returned in
-   *  reverse order.
-   */
-  private def parseArguments(long: Boolean, parameters: List[Token]): Try[List[List[Token]]] = {
-    @tailrec
-    def loop(parameters: List[Token], stop: Option[Token], localAcc: List[Token], acc: List[List[Token]]): Try[List[List[Token]]] = stop match {
-      case Some(stop) =>
-        // we must read until the stop token has been reached
-        // if the macro was declared as long, then \par is allowed.
-        raw() match {
-          case Success(tok @ ControlSequenceToken(name, _)) if env.css.isOuter(name) =>
-            Failure(new TeXMouthException("Outer macros are not authorized in macro parameterf", tok.pos))
-          case Success(tok @ ControlSequenceToken("par", _)) if !long =>
-            Failure(new TeXMouthException("Runaway argument. new paragraph is not allowed in the parameter list", tok.pos))
-          case Success(tok) if tok == stop =>
-            loop(parameters, None, Nil, localAcc :: acc)
-          case Success(tok) =>
-            loop(parameters, Some(stop), tok :: localAcc, acc)
-          case Failure(t) =>
-            Failure(t)
-        }
-      case None =>
-        parameters match {
-          case Nil =>
-            Success(acc.reverse)
-          case ParameterToken(_) :: rest =>
-            rest match {
-              case Nil | ParameterToken(_) :: _ =>
-                // an undelimited parameter
-                raw() match {
-                  case Success(t) =>
-                    loop(rest, None, Nil, List(t) :: acc)
-                  case Failure(t) =>
-                    Failure(t)
-                }
-              case token :: rest =>
-                loop(rest, Some(token), Nil, acc)
-            }
-          case (token @ (ControlSequenceToken(_, _) | CharacterToken(_, _))) :: rest =>
-            // this is a delimiter token, accept it and go forward
-            eat(token) match {
-              case Success(()) =>
-                loop(rest, None, Nil, acc)
-              case Failure(t) =>
-                Failure(t)
-            }
-          case (token @ GroupToken(_, _, _)) :: _ =>
-            Failure(new TeXMouthException("Groups are not allowed in macro parameter listf", token.pos))
-        }
-
-    }
-    loop(parameters, None, Nil, Nil)
   }
 
   /** Parses a correctly nested group of the form:

@@ -18,6 +18,8 @@ package mouth
 
 import dimen.Dimension
 
+import util.Position
+
 import scala.util.{
   Try,
   Success,
@@ -145,6 +147,95 @@ trait TeXMacros {
     }
 
   }
+
+  /** Parses the arguments of the given TeX macro.
+   *  The parser parses according to the parameter text
+   *  that was parsed during the macro definition.
+   *  If the macro is declared as `long`, then `\par` is allowed
+   *  to appear as argument. In any cases, `outer` macros are not allowed
+   *  to appear in the arguments.
+   *  Arguments are returned in order, but the tokens of each argument are returned in
+   *  reverse order.
+   */
+  private def parseArguments(long: Boolean, parameters: List[Token]): Try[List[List[Token]]] = {
+    @tailrec
+    def loop(parameters: List[Token], stop: Option[Token], localAcc: List[Token], acc: List[List[Token]]): Try[List[List[Token]]] = stop match {
+      case Some(stop) =>
+        // we must read until the stop token has been reached
+        // if the macro was declared as long, then \par is allowed.
+        raw() match {
+          case Success(tok @ ControlSequenceToken(name, _)) if env.css.isOuter(name) =>
+            Failure(new TeXMouthException("Outer macros are not authorized in macro parameterf", tok.pos))
+          case Success(tok @ ControlSequenceToken("par", _)) if !long =>
+            Failure(new TeXMouthException("Runaway argument. new paragraph is not allowed in the parameter list", tok.pos))
+          case Success(tok) if tok == stop =>
+            loop(parameters, None, Nil, localAcc :: acc)
+          case Success(tok) =>
+            loop(parameters, Some(stop), tok :: localAcc, acc)
+          case Failure(t) =>
+            Failure(t)
+        }
+      case None =>
+        parameters match {
+          case Nil =>
+            Success(acc.reverse)
+          case ParameterToken(_) :: rest =>
+            rest match {
+              case Nil | ParameterToken(_) :: _ =>
+                // an undelimited parameter
+                raw() match {
+                  case Success(t) =>
+                    loop(rest, None, Nil, List(t) :: acc)
+                  case Failure(t) =>
+                    Failure(t)
+                }
+              case token :: rest =>
+                loop(rest, Some(token), Nil, acc)
+            }
+          case (token @ (ControlSequenceToken(_, _) | CharacterToken(_, _))) :: rest =>
+            // this is a delimiter token, accept it and go forward
+            eat(token) match {
+              case Success(()) =>
+                loop(rest, None, Nil, acc)
+              case Failure(t) =>
+                Failure(t)
+            }
+          case (token @ GroupToken(_, _, _)) :: _ =>
+            Failure(new TeXMouthException("Groups are not allowed in macro parameter listf", token.pos))
+        }
+
+    }
+    loop(parameters, None, Nil, Nil)
+  }
+
+  final def expandCs(cs: ControlSequence, pos: Position): Try[Token] =
+    cs match {
+      case TeXMacro(_, parameters, replacement, long, outer) =>
+        // consume the macro name name
+        swallow()
+        // parse the arguments
+        parseArguments(long, parameters) flatMap { args =>
+          // we then push back the replacement text onto the token stack
+          // replacing as it goes the parameters by the parsed ones.
+          replacement.foreach {
+            case ParameterToken(i) =>
+              // by construction (with the parser) the parameter exists
+              val arg =
+                if(env.debugPositions)
+                  args(i).map(a => a.atPos(pos, Some(a.pos)))
+                else
+                  args(i)
+              pushback(arg)
+            case token =>
+              pushback(token)
+          }
+          // and read again
+          read()
+
+        }
+      case _ =>
+        ???
+    }
 
   def expandIf(): Try[Token] =
     raw() flatMap {
@@ -549,6 +640,37 @@ trait TeXMacros {
         } yield t
       case Success(t) =>
         Failure(new TeXMouthException("expected \\meaning command", t.pos))
+      case f =>
+        f
+    }
+
+  def expandCsname(): Try[Token] =
+    raw() match {
+      case Success(start @ ControlSequenceToken("csname", _)) =>
+        swallow()
+        @tailrec
+        def loop(acc: List[Token]): Try[List[Token]] =
+          read() match {
+            case Success(ControlSequenceToken("endcsname", _)) =>
+              swallow()
+              Success(acc)
+            case Success(c @ CharacterToken(_, _)) =>
+              swallow()
+              loop(c :: acc)
+            case Success(t) =>
+              Failure(new TeXMouthException("character tokens only are expected inside \\csname..\\endcsname", t.pos))
+            case Failure(f) =>
+              Failure(f)
+          }
+        for {
+          name <- loop(Nil)
+          t <- env.css(name.map(_.toString(env)).mkString) match {
+            case Some(cs @ TeXMacro(_, _, _, _, _)) => expandCs(cs, start.pos)
+            case _ => read() // fi not found it does nothing, just go ahead
+          }
+        } yield t
+      case Success(t) =>
+        Failure(new TeXMouthException("expected \\csname command", t.pos))
       case f =>
         f
     }
