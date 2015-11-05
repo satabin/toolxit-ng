@@ -218,6 +218,15 @@ class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
                 swallow()
                 closeAtEOL = true
                 read()
+              case "jobname" =>
+                swallow()
+                for(c <- env.jobname.reverse) {
+                  if(Character.isWhitespace(c))
+                    tokens.push(CharacterToken(c, Category.SPACE))
+                  else
+                    tokens.push(CharacterToken(c, Category.OTHER_CHARACTER))
+                }
+                read()
               case "romannumeral" =>
                 expandRomannumeral()
               case _ =>
