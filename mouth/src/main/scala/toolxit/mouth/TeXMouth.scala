@@ -229,6 +229,8 @@ class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
                 read()
               case "romannumeral" =>
                 expandRomannumeral()
+              case "number" =>
+                expandNumber()
               case _ =>
                 // otherwise return it
                 swallow()

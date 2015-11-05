@@ -395,6 +395,7 @@ trait TeXMacros {
 
   assert(decimals.size == romans.size)
 
+  // the result is in reverse order, so that it can be pushed back directly on the token stack
   @tailrec
   private def toRoman(i: Int, idx: Int, acc: List[Token]): List[Token] =
     if(i <= 0) {
@@ -417,6 +418,34 @@ trait TeXMacros {
         } yield t
       case Success(t) =>
         Failure(new TeXMouthException("expected \\romannumeral command", t.pos))
+      case f =>
+        f
+    }
+
+  // the result is in reverse order, so that it can be pushed back directly on the token stack
+  private def toTokens(negative: Boolean, n: Int): List[Token] =
+    if(n < 10) {
+      if(negative) {
+        List(CharacterToken(('0' + n).toChar, Category.OTHER_CHARACTER), CharacterToken('-', Category.OTHER_CHARACTER))
+      } else {
+        List(CharacterToken(('0' + n).toChar, Category.OTHER_CHARACTER))
+      }
+    } else {
+      CharacterToken(('0' + (n % 10)).toChar, Category.OTHER_CHARACTER) :: toTokens(negative, n / 10)
+    }
+
+  def expandNumber(): Try[Token] =
+    raw() match {
+      case Success(ControlSequenceToken("number", _)) =>
+        swallow()
+        for {
+          n <- parseNumber()
+          tokens = toTokens(n < 0, math.abs(n))
+          () = pushback(tokens)
+          t <- read()
+        } yield t
+      case Success(t) =>
+        Failure(new TeXMouthException("expected \\number command", t.pos))
       case f =>
         f
     }
