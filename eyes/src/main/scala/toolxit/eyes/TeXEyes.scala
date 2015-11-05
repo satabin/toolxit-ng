@@ -28,6 +28,8 @@ import scala.annotation.tailrec
 
 import scala.collection.mutable.Stack
 
+import java.io.Reader
+
 /** The TeX eyes as defined in the ''TeX Book'' mainly in chapter 8 '''The Characters You Type'''.
  *  This is the lexer that generates a stream of TeX tokens out of a character stream.
  *  It uses as input a character stream that is line aware, allowing for better error messages,
@@ -35,11 +37,11 @@ import scala.collection.mutable.Stack
  *
  *  @author Lucas Satabin
  */
-class TeXEyes(_stream: LineStream) {
+class TeXEyes(reader: Reader) {
 
   private var state: ReadingState.Value = ReadingState.N
 
-  private var stream: LineStream = _stream
+  private var stream: LineStream = LineStream(reader)
 
   /** Returns the next token to be read from this input */
   @tailrec
@@ -158,6 +160,9 @@ class TeXEyes(_stream: LineStream) {
         Failure(EOIException(stream.lineNum, stream.colNum))
     }
   }
+
+  def close(): Unit =
+    reader.close()
 
 }
 

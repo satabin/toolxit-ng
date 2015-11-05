@@ -31,7 +31,6 @@ import scala.collection.mutable.{
   Builder,
   ArrayBuffer
 }
-import scala.io.Source
 
 /** A lazy character stream with line awareness.  This also provides
  *  amortized constant-time {@link CharSequence} access.

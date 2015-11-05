@@ -146,8 +146,8 @@ trait TeXMacros {
 
   }
 
-  def parseIf(): Try[Token] =
-    read() flatMap {
+  def expandIf(): Try[Token] =
+    raw() flatMap {
       case ControlSequenceToken("ifnum", _) =>
         swallow()
         for {
@@ -343,5 +343,38 @@ trait TeXMacros {
       e <- parseElse(0, Nil)
     } yield cs.applyOrElse(n, e)
   }
+
+  def expandInput(): Try[Token] =
+    raw() match {
+      case Success(ControlSequenceToken("input", _)) =>
+        // read the filename which consists in all the consecutive non space character tokens following the input macro
+        swallow()
+        @tailrec
+        def loop(acc: StringBuilder): Try[String] =
+          read() match {
+            case Success(CharacterToken(_, Category.SPACE) | ControlSequenceToken(_, _)) if acc.nonEmpty =>
+              val acc1 =
+                if(acc.endsWith(".tex"))
+                  acc
+                else
+                  acc.append(".tex")
+              Success(acc1.toString)
+            case Success(CharacterToken(c, _)) =>
+              loop(acc.append(c))
+            case Success(t) =>
+              Failure(new TeXMouthException("Missing input file name", t.pos))
+            case Failure(t) =>
+              Failure(t)
+          }
+        for {
+          name <- loop(new StringBuilder)
+          () <- openInput(name)
+          t <- read()
+        } yield t
+      case Success(t) =>
+        Failure(new TeXMouthException("expected \\input command", t.pos))
+      case t =>
+        t
+    }
 
 }

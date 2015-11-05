@@ -29,6 +29,11 @@ import scala.annotation.tailrec
 
 import scala.collection.mutable.Stack
 
+import java.io.{
+  Reader,
+  FileReader
+}
+
 /** The TeX mouth is a parser from tokens produced by the [[toolxit.eyes.TeXEyes]]
  *  and produces in turn commands that can be digested by the stomach.
  *  This parser interpretes all primitive TeX commands that define new macros, counters, or change internal quantities.
@@ -47,7 +52,7 @@ import scala.collection.mutable.Stack
  *
  *  @author Lucas Satabin
  */
-class TeXMouth(private var _env: TeXEnvironment, stream: LineStream)
+class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
     extends TeXMacros
     with TeXParameters
     with TeXInternals
@@ -68,12 +73,26 @@ class TeXMouth(private var _env: TeXEnvironment, stream: LineStream)
     tokens.pushAll(rev)
 
   /** the input stream to read */
-  private val eyes =
-    new TeXEyes(stream)
+  private val eyes: Stack[TeXEyes] =
+    Stack(new TeXEyes(reader))
 
   /** Indicates whether the parser is expanding control sequences */
   private var expanding: Boolean =
     true
+
+  /** Indicates whether the input must be closed at the nex end of line.
+   *  This is the case when the `\endinput` command has been encountered. */
+  private var closeAtEOL: Boolean =
+    false
+
+  def openInput(name: String): Try[Unit] =
+    Try(eyes.push(new TeXEyes(new FileReader(name))))
+
+  def closeInput(): Try[Unit] =
+    Try {
+      closeAtEOL = false
+      eyes.pop().close()
+    }
 
   protected[this] object Primitive {
     def unapply(cs: ControlSequenceToken): Option[String] =
@@ -84,10 +103,12 @@ class TeXMouth(private var _env: TeXEnvironment, stream: LineStream)
   }
 
   protected[this] object If {
-    def unapply(t: Token): Option[Token] =
-      t match {
-        case ControlSequenceToken(i, _) if env.isIf(i) =>
-          Some(t)
+    def unapply(name: String): Boolean =
+      Primitives.isIf(name)
+    def unapply(token: Token): Option[Token] =
+      token match {
+        case ControlSequenceToken(name, _) if Primitives.isIf(name) =>
+          Some(token)
         case _ =>
           None
       }
@@ -120,12 +141,28 @@ class TeXMouth(private var _env: TeXEnvironment, stream: LineStream)
       tokens.pop
 
   /** Returns the next unexpanded token */
+  @tailrec
   final def raw(): Try[Token] =
     if (tokens.isEmpty) {
-      eyes.next(env) map { token =>
-        // create a new token stack with the one we just read
-        tokens.push(token)
-        token
+      eyes.headOption match {
+        case Some(eyes) =>
+          eyes.next(env) flatMap { token =>
+            // push the token we just read onto the token stack, it will be popped when actually consumed
+            tokens.push(token)
+            token match {
+              case CharacterToken(_, Category.END_OF_LINE) if closeAtEOL =>
+                for(() <- closeInput())
+                  yield token
+              case _ =>
+                Success(token)
+            }
+          }
+        case None if eyes.size > 1 =>
+          // this stream is exhausted, but there is more!
+          closeInput()
+          raw()
+        case None =>
+          Failure(new TeXInternalException("No more input stream available"))
       }
     } else {
       Success(tokens.head)
@@ -171,8 +208,21 @@ class TeXMouth(private var _env: TeXEnvironment, stream: LineStream)
             // expand it if found
             expand(cs, token.pos)
           case None =>
-            // otherwise return it
-            Success(token)
+            // check for primitive control sequence expansions
+            name match {
+              case If() =>
+                expandIf()
+              case "input" =>
+                expandInput()
+              case "endinput" =>
+                swallow()
+                closeAtEOL = true
+                read()
+              case _ =>
+                // otherwise return it
+                swallow()
+                Success(token)
+            }
         }
 
       case t =>
