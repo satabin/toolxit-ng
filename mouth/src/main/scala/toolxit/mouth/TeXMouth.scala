@@ -71,6 +71,8 @@ class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
   /** Pushes the given sequence back in reverse order into the input token stream */
   protected[this] def pushback(rev: Seq[Token]): Unit =
     tokens.pushAll(rev)
+  protected[this] def pushback(t: Token): Unit =
+    tokens.push(t)
 
   /** the input stream to read */
   private val eyes: Stack[TeXEyes] =
@@ -231,6 +233,8 @@ class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
                 expandRomannumeral()
               case "number" =>
                 expandNumber()
+              case "string" =>
+                expandString()
               case _ =>
                 // otherwise return it
                 swallow()

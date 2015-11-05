@@ -450,4 +450,35 @@ trait TeXMacros {
         f
     }
 
+  def expandString(): Try[Token] =
+    raw() match {
+      case Success(ControlSequenceToken("string", _)) =>
+        swallow()
+        raw() match {
+          case Success(ControlSequenceToken(n, true)) =>
+            assert(n.size == 1)
+            swallow()
+            val c = n(0)
+            pushback(CharacterToken(c, if(c.isWhitespace) Category.SPACE else Category.OTHER_CHARACTER))
+            read()
+          case Success(ControlSequenceToken(n, false)) =>
+            swallow()
+            for(c <- n.reverse)
+              pushback(CharacterToken(c, if(c.isWhitespace) Category.SPACE else Category.OTHER_CHARACTER))
+            pushback(CharacterToken(env.escapechar, Category.OTHER_CHARACTER))
+            read()
+          case Success(CharacterToken(c, _)) =>
+            pushback(CharacterToken(c, if(c.isWhitespace) Category.SPACE else Category.OTHER_CHARACTER))
+            read()
+          case Success(t) =>
+            Failure(new TeXMouthException("expected token", t.pos))
+          case f =>
+            f
+        }
+      case Success(t) =>
+        Failure(new TeXMouthException("expected \\number command", t.pos))
+      case f =>
+        f
+    }
+
 }
