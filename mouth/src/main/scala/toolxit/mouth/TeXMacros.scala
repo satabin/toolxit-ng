@@ -377,4 +377,48 @@ trait TeXMacros {
         t
     }
 
+  private val decimals = Vector(1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1)
+  private val romans = Vector(
+    List(CharacterToken('m', Category.OTHER_CHARACTER)),
+    List(CharacterToken('m', Category.OTHER_CHARACTER), CharacterToken('c', Category.OTHER_CHARACTER)),
+    List(CharacterToken('d', Category.OTHER_CHARACTER)),
+    List(CharacterToken('d', Category.OTHER_CHARACTER), CharacterToken('c', Category.OTHER_CHARACTER)),
+    List(CharacterToken('c', Category.OTHER_CHARACTER)),
+    List(CharacterToken('c', Category.OTHER_CHARACTER), CharacterToken('x', Category.OTHER_CHARACTER)),
+    List(CharacterToken('l', Category.OTHER_CHARACTER)),
+    List(CharacterToken('l', Category.OTHER_CHARACTER), CharacterToken('x', Category.OTHER_CHARACTER)),
+    List(CharacterToken('x', Category.OTHER_CHARACTER)),
+    List(CharacterToken('x', Category.OTHER_CHARACTER), CharacterToken('i', Category.OTHER_CHARACTER)),
+    List(CharacterToken('v', Category.OTHER_CHARACTER)),
+    List(CharacterToken('v', Category.OTHER_CHARACTER), CharacterToken('i', Category.OTHER_CHARACTER)),
+    List(CharacterToken('i', Category.OTHER_CHARACTER)))
+
+  assert(decimals.size == romans.size)
+
+  @tailrec
+  private def toRoman(i: Int, idx: Int, acc: List[Token]): List[Token] =
+    if(i <= 0) {
+      acc
+    } else if(i < decimals(idx)) {
+      toRoman(i, idx + 1, acc)
+    } else {
+      toRoman(i - decimals(idx), 0, romans(idx) ++ acc)
+    }
+
+  def expandRomannumeral(): Try[Token] =
+    raw() match {
+      case Success(ControlSequenceToken("romannumeral", _)) =>
+        swallow()
+        for {
+          n <- parseNumber()
+          tokens = toRoman(n, 0, Nil)
+          () = pushback(tokens)
+          t <- read()
+        } yield t
+      case Success(t) =>
+        Failure(new TeXMouthException("expected \\romannumeral command", t.pos))
+      case f =>
+        f
+    }
+
 }

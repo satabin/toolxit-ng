@@ -218,6 +218,8 @@ class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
                 swallow()
                 closeAtEOL = true
                 read()
+              case "romannumeral" =>
+                expandRomannumeral()
               case _ =>
                 // otherwise return it
                 swallow()
