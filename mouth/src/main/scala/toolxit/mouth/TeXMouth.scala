@@ -209,6 +209,8 @@ class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
                 expandMeaning()
               case "csname" =>
                 expandCsname()
+              case "expandafter" =>
+                expandafter()
               case _ =>
                 // otherwise return it
                 swallow()

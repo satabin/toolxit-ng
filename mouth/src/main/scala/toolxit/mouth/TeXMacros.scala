@@ -675,4 +675,21 @@ trait TeXMacros {
         f
     }
 
+  def expandafter(): Try[Token] =
+    raw() match {
+      case Success(start @ ControlSequenceToken("expandafter", _)) =>
+        swallow()
+        for {
+          first <- raw()
+          () = swallow()
+          _ <- read()
+          () = pushback(first)
+          t <- read()
+        } yield t
+      case Success(t) =>
+        Failure(new TeXMouthException("expected \\expandafter command", t.pos))
+      case f =>
+        f
+    }
+
 }
