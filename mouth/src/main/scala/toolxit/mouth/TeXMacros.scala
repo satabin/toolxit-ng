@@ -528,7 +528,7 @@ trait TeXMacros {
   // the result is in reverse order, so that it can be pushed back directly on the token stack
   private def toTokens(s: String): List[Token] =
     s.foldLeft(List.empty[Token]) { (acc, c) =>
-      if(c.isWhitespace) {
+      if(c == ' ') {
         CharacterToken(c, Category.SPACE) :: acc
       } else {
         CharacterToken(c, Category.OTHER_CHARACTER) :: acc
@@ -560,16 +560,16 @@ trait TeXMacros {
             assert(n.size == 1)
             swallow()
             val c = n(0)
-            pushback(CharacterToken(c, if(c.isWhitespace) Category.SPACE else Category.OTHER_CHARACTER))
+            pushback(CharacterToken(c, if(c == ' ') Category.SPACE else Category.OTHER_CHARACTER))
             read()
           case Success(ControlSequenceToken(n, false)) =>
             swallow()
             for(c <- n.reverse)
-              pushback(CharacterToken(c, if(c.isWhitespace) Category.SPACE else Category.OTHER_CHARACTER))
+              pushback(CharacterToken(c, if(c == ' ') Category.SPACE else Category.OTHER_CHARACTER))
             pushback(CharacterToken(env.escapechar, Category.OTHER_CHARACTER))
             read()
           case Success(CharacterToken(c, _)) =>
-            pushback(CharacterToken(c, if(c.isWhitespace) Category.SPACE else Category.OTHER_CHARACTER))
+            pushback(CharacterToken(c, if(c == ' ') Category.SPACE else Category.OTHER_CHARACTER))
             read()
           case Success(t) =>
             Failure(new TeXMouthException("expected token", t.pos))

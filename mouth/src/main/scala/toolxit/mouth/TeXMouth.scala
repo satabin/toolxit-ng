@@ -193,7 +193,7 @@ class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
               case "jobname" =>
                 swallow()
                 for(c <- env.jobname.reverse) {
-                  if(Character.isWhitespace(c))
+                  if(c == ' ')
                     tokens.push(CharacterToken(c, Category.SPACE))
                   else
                     tokens.push(CharacterToken(c, Category.OTHER_CHARACTER))
