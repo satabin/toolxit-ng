@@ -211,6 +211,12 @@ class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
                 expandCsname()
               case "expandafter" =>
                 expandafter()
+              case "noexpand" =>
+                swallow()
+                raw().map { t =>
+                  swallow()
+                  t
+                }
               case _ =>
                 // otherwise return it
                 swallow()
