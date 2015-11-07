@@ -1,3 +1,4 @@
+[![Stories in Ready](https://badge.waffle.io/satabin/toolxit-ng.png?label=ready&title=Ready)](https://waffle.io/satabin/toolxit-ng)
 ToolXiT
 =======
 
