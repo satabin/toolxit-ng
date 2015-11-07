@@ -1,4 +1,4 @@
-[![Stories in Ready](https://badge.waffle.io/satabin/toolxit-ng.png?label=ready&title=Ready)](https://waffle.io/satabin/toolxit-ng)
+[![Accepted tickets](https://badge.waffle.io/satabin/toolxit-ng.png?label=accepted&title=accepted)](https://waffle.io/satabin/toolxit-ng)[![In progress tickets](https://badge.waffle.io/satabin/toolxit-ng.png?label=in progress&title=in progress)](https://waffle.io/satabin/toolxit-ng)
 ToolXiT
 =======
 
