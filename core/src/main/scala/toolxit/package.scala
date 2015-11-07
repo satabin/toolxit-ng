@@ -1,5 +1,5 @@
 /*
-* This file is part of the ToolXiT project.
+* Copyright (c) 2015 Lucas Satabin
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.

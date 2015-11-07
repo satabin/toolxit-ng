@@ -1,5 +1,5 @@
 /*
-* This file is part of the ToolXiT project.
+* Copyright (c) 2015 Lucas Satabin
 * Based on code from https://github.com/djspiewak/gll-combinators
 * by Daniel Spiewak
 *
