@@ -76,7 +76,7 @@ class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
 
   /** the input stream to read */
   private val eyes: Stack[TeXEyes] =
-    Stack(new TeXEyes(reader))
+    ???
 
   /** Indicates whether the parser is expanding control sequences */
   private var expanding: Boolean =
@@ -88,12 +88,12 @@ class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
     false
 
   def openInput(name: String): Try[Unit] =
-    Try(eyes.push(new TeXEyes(new FileReader(name))))
+    Try(eyes.push(???))
 
   def closeInput(): Try[Unit] =
     Try {
       closeAtEOL = false
-      eyes.pop().close()
+      eyes.pop()
     }
 
   protected[this] object Primitive {
@@ -148,6 +148,7 @@ class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
     if (tokens.isEmpty) {
       eyes.headOption match {
         case Some(eyes) =>
+          /*
           eyes.next(env) flatMap { token =>
             // push the token we just read onto the token stack, it will be popped when actually consumed
             tokens.push(token)
@@ -159,6 +160,8 @@ class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
                 Success(token)
             }
           }
+          */
+         ???
         case None if eyes.size > 1 =>
           // this stream is exhausted, but there is more!
           closeInput()

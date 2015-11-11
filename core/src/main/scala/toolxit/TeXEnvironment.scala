@@ -43,6 +43,9 @@ abstract class TeXEnvironment {
   /** The job name, typically, the name of the command that launched this process */
   val jobname: String
 
+  /** The current reading state */
+  var state: ReadingState.Value
+
   /** The current parsing mode */
   var mode: Mode.Value
 
@@ -519,6 +522,12 @@ private class SubTeXEnvironment(parent: TeXEnvironment) extends TeXEnvironment {
   val jobname: String =
     root.jobname
 
+  def state: ReadingState.Value =
+    root.state
+
+  def state_=(s: ReadingState.Value): Unit =
+    root.state = s
+
   def mode: Mode.Value =
     root.mode
 
@@ -607,6 +616,9 @@ private class RootTeXEnvironment(override val jobname: String) extends TeXEnviro
 
   val root =
     this
+
+  var state =
+    ReadingState.N
 
   var mode =
     Mode.VerticalMode

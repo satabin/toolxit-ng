@@ -77,11 +77,27 @@ case class Cont[In, Monad[+_]: Monadic, Out](k: Input[In] => Iteratee[In, Monad,
  */
 abstract class Iteratees[Elt, Monad[+_]: Monadic] {
 
+  /** The iteratee that is done with the specified result. */
+  def done[Res](v: Res): Iteratee[Elt, Monad, Res] =
+    Done(v, Chunk(Nil))
+
+  /** The iteratee that consumes no input and produces nothing */
+  val noop: Iteratee[Elt, Monad, Unit] =
+    Done((), Chunk(Nil))
+
   /** Consumes one element from the input. */
   def take: Iteratee[Elt, Monad, Option[Elt]] = Cont {
     case Chunk(e :: rest) => Done(Some(e), Chunk(rest))
     case Eoi => Done(None, Eoi)
     case Chunk(Nil) => take
+  }
+
+  /** Consumes one element from the input.
+   *  If the end of input was reached, throw the specified exception. */
+  def take(t: =>Throwable): Iteratee[Elt, Monad, Elt] = Cont {
+    case Chunk(e :: rest) => Done(e, Chunk(rest))
+    case Eoi => Error(t, Eoi)
+    case Chunk(Nil) => take(t)
   }
 
   /** Consumes elements from the input as long as the predicate holds.
@@ -145,5 +161,13 @@ abstract class Iteratees[Elt, Monad[+_]: Monadic] {
     case Chunk(l) => Done((), Chunk(el reverse_::: l))
     case _        => Done((), Chunk(el.reverse))
   }
+
+  /** Throws a recoverable error. */
+  def throwError(t: Throwable): Iteratee[Elt, Monad, Nothing] =
+    Error(t, Chunk(Nil))
+
+  /** Throws a fatal error. */
+  def throwFatal(t: Throwable): Iteratee[Elt, Monad, Nothing] =
+    Error(t, Eoi)
 
 }
