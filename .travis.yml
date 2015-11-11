@@ -6,3 +6,5 @@ script: sbt +test
 branches:
   only:
     - master
+
+sudo: false
