@@ -14,35 +14,16 @@
 * limitations under the License.
 */
 package toolxit
-package stomach
+package util
 
-import eyes._
-import mouth._
-import util._
+import scala.language.higherKinds
 
-import scala.util.{
-  Try,
-  Failure
-}
+trait Monadic[M[+_]] {
 
-abstract class TeXChewer[Out] {
+  def unit[T](v: T): M[T]
 
-  val mouth: TeXMouth
+  def error[T](t: Throwable): M[T]
 
-  val env = mouth.env
-
-  private def toStream[T](t: Try[T]): Stream[Try[T]] =
-    t match {
-      case Failure(_: EOIException) => Eos
-      case t                        => Chunk(List(t))
-    }
-
-  private[this] def command: Stream[Try[Command]] =
-    toStream(mouth.parseCommand)
-
-  private[this] def number: Stream[Try[Int]] =
-    toStream(mouth.parseNumber)
-
-  def chew: Iteratee[Command, Try, Out]
+  def bind[T, U](f: T => M[U], m: M[T]): M[U]
 
 }
