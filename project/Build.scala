@@ -26,7 +26,7 @@ import sbtunidoc.Plugin._
 object ToolXiTBuild extends Build {
 
   lazy val globalSettings = scalariformSettings ++ Seq(
-    organization := "org.gnieh",
+    organization := "toolxit",
     version := "0.1.0-SNAPSHOT",
     resolvers += "Sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/",
     scalaVersion := "2.11.7",
