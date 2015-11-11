@@ -1,5 +1,7 @@
 language: scala
 
+script: sbt +test
+
 # only trigger builds on master
 branches:
   only:
