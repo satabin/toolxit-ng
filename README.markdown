@@ -1,4 +1,4 @@
-[![Accepted tickets](https://badge.waffle.io/satabin/toolxit-ng.png?label=accepted&title=accepted)](https://waffle.io/satabin/toolxit-ng)[![In progress tickets](https://badge.waffle.io/satabin/toolxit-ng.png?label=in progress&title=in progress)](https://waffle.io/satabin/toolxit-ng)
+[![Build Status](https://travis-ci.org/satabin/toolxit-ng.svg?branch=master)](https://travis-ci.org/satabin/toolxit-ng) [![Accepted tickets](https://badge.waffle.io/satabin/toolxit-ng.png?label=accepted&title=accepted)](https://waffle.io/satabin/toolxit-ng) [![In progress tickets](https://badge.waffle.io/satabin/toolxit-ng.png?label=in progress&title=in progress)](https://waffle.io/satabin/toolxit-ng)
 ToolXiT
 =======
 
