@@ -19,6 +19,8 @@ import dimen._
 
 import scala.collection.mutable.Map
 
+import scala.annotation.tailrec
+
 /** The TeX environment tracks the following elements:
  *   - defined macros,
  *   - character category codes,
@@ -31,76 +33,156 @@ import scala.collection.mutable.Map
  *  This hierarchy mechanism is fully managed by this class by calling the methods
  *  `enterGroup` and `leaveGroup`.
  *
+ *  @groupdesc Globals These declarations represent the global state of the environment
+ *  @groupdesc Registers These are the various available registers
+ *  @groupdesc Extractors Useful extractor using the current environment
+ *
  *  @author Lucas Satabin
  *
  */
-abstract class TeXEnvironment {
+class TeXEnvironment(_jobname: String) {
   self =>
 
-  /** The root environment of this instance */
-  def root: TeXEnvironment
+  // defines the registeres that get stacked when entering groups
+  // registers allow for local definitions
+  private class TeXRegisters(val parent: Option[TeXRegisters]) {
 
-  /** The job name, typically, the name of the command that launched this process */
-  val jobname: String
+    // the map from character to category code
+    val categories = Map.empty[Char, Category.Value]
 
-  /** The current reading state */
-  var state: ReadingState.Value
+    // the map from cs name to its internal representation
+    val controlSequences = Map.empty[String, ControlSequence]
 
-  /** The current parsing mode */
-  var mode: Mode.Value
+    // local values of the different registers
+    val counters = Map.empty[Byte, Int]
+    // all dimension are stored as an integer multiple of one sp
+    // the biggest dimension accepted by TeX is 2^30sp, so an integer
+    // is sufficient to store it.
+    val dimensions = Map.empty[Byte, Dimension]
+    // glues and muglues are the triple (dimension, stretch, shrink)
+    val glues = Map.empty[Byte, Glue]
+    val muglues = Map.empty[Byte, Muglue]
+    // TODO other register types
 
-  /** Enters a new group and returns the new environment local to this group. */
-  def enterGroup: TeXEnvironment =
-    new SubTeXEnvironment(this)
+  }
 
-  /** Leaves a group and returns the environment corresponding to the parent group. */
-  def leaveGroup: TeXEnvironment
+  /** The root registers of this instance */
+  private val root: TeXRegisters =
+    new TeXRegisters(None)
 
-  /** Exposes category management functions. */
-  val category: Category
+  /** The currently stacked local registers */
+  private var locals: TeXRegisters =
+    root
 
-  trait Category {
+  /** The job name, typically, the name of the command that launched this process.
+   *
+   *  @group Globals
+   */
+  val jobname: String =
+    _jobname
+
+  /** The current reading state.
+   *
+   *  @group Globals
+   */
+  var state: ReadingState.Value =
+    ReadingState.N
+
+  /** The current parsing mode.
+   *
+   *  @group Globals
+   */
+  var mode: Mode.Value =
+    Mode.VerticalMode
+
+  /** Enters a new group and returns the new environment local to this group.
+   *
+   *  @group Globals
+   */
+  def enterGroup: Unit =
+    locals = new TeXRegisters(Some(locals))
+
+  /** Leaves a group and returns the environment corresponding to the parent group.
+   *
+   *  @group Globals
+   */
+  def leaveGroup: Unit =
+    locals = locals.parent.get
+
+  // generic lookup function that starts from the register on top in the stack
+  // and goes up in the hierarchy until the root is reached
+  @tailrec
+  private def lookupRegister[Key, Value](key: Key, map: TeXRegisters => Map[Key, Value], registers: TeXRegisters): Option[Value] =
+    map(registers).get(key) match {
+      case Some(v) =>
+        Some(v)
+      case None =>
+        registers.parent match {
+          case Some(parent) =>
+            lookupRegister(key, map, parent)
+          case None =>
+            None
+        }
+    }
+
+  /** Exposes category management functions.
+   *
+   *  @group Registers
+   */
+  object category {
+
     /** Returns the category of the given character in the current environment.
      *  This category may vary over time, so this method must be called every time
      *  one needs to determine the category of a character.
      */
-    def apply(char: Char): Category.Value
+    def apply(char: Char): Category.Value =
+      lookupRegister(char, (_.categories), locals) match {
+        case Some(c) =>
+          c
+        case None =>
+          // if not specified otherwise, UTF-8 letters are in category `letter`
+          if (char.isLetter)
+            Category.LETTER
+          else
+            Category.OTHER_CHARACTER
+      }
 
     /** Sets the category of the given character. This setting is scoped
      *  to the current group only, and will be discarded when leaving the group.
      */
     def update(char: Char, category: Category.Value): Unit =
-      categories(char) = category
+      locals.categories(char) = category
 
   }
 
-  /** Exposes control sequence management functions. */
-  val css: Css
-
-  trait Css {
+  /** Exposes control sequence management functions.
+   *
+   *  @group Registers
+   */
+  object css {
 
     /** Exposes global control sequence management functions. */
-    val global: Global
-
-    trait Global {
+    object global {
       /** Finds and returns the control sequence definition identified by its name.
        *  If the control sequence is not found, returns `None`.
        */
-      def apply(name: String): Option[ControlSequence]
+      def apply(name: String): Option[ControlSequence] =
+        root.controlSequences.get(name)
 
       /** Adds or replace the global control sequence identified by the given name
        *  with the new control sequence definition. This control sequence definition
        *  is global and so will be available in any context.
        */
       def update(name: String, cs: ControlSequence): Unit =
-        root.css(name) = cs
+        root.controlSequences(name) = cs
 
     }
 
     /** Finds and returns the control sequence definition identified by its name.
      *  If the control sequence is not found in the given context, returns `None`.
      */
-    def apply(name: String): Option[ControlSequence]
+    def apply(name: String): Option[ControlSequence] =
+      lookupRegister(name, (_.controlSequences), locals)
 
     /** Indicates whether the given name is a macro declared as `\outer` */
     def isOuter(name: String): Boolean =
@@ -117,10 +199,13 @@ abstract class TeXEnvironment {
      *  is scoped to  the current group only, and will be discarded when leaving the group.
      */
     def update(name: String, cs: ControlSequence) =
-      controlSequences(name) = cs
+      locals.controlSequences(name) = cs
   }
 
-  // A register is either in this environment or in one parent
+  /** A register is either in this environment or in one parent.
+   *
+   *  @group Registers
+   */
   trait Register[T] {
 
     def apply(number: Byte): Option[T]
@@ -129,172 +214,99 @@ abstract class TeXEnvironment {
 
   }
 
-  /** Exposes count register management functions. */
-  val count: Count
-
-  trait Count extends Register[Int] {
+  /** Exposes count register management functions.
+   *
+   *  @group Registers
+   */
+  object count extends Register[Int] {
 
     /** Finds and returns the count register value identified by its register number
      *  in the current environment.
      *  The default value of a count register is `0`.
      */
-    def apply(number: Byte): Option[Int]
+    def apply(number: Byte): Option[Int] =
+      lookupRegister(number, (_.counters), locals)
 
     /** Sets the value of the count register in the current environment.
      *  This value will be reseted to the previous value when leaving the current group.
      */
     def update(number: Byte, value: Int) =
-      counters(number) = value
+      locals.counters(number) = value
   }
 
-  /** Exposes dimension register management functions. */
-  val dimen: Dimen
-
-  trait Dimen extends Register[Dimension] {
+  /** Exposes dimension register management functions.
+   *
+   *  @group Registers
+   */
+  object dimen extends Register[Dimension] {
 
     /** Finds and returns the dimension register value identified by its register number
      *  in the current environment.
      *  The default value of a dimension register is `0 pt`.
      */
-    def apply(number: Byte): Option[Dimension]
+    def apply(number: Byte): Option[Dimension] =
+      lookupRegister(number, (_.dimensions), locals)
 
     /** Sets the value of the dimension register in the current environment.
      *  This value will be reseted to the previous value when leaving the current group.
      */
     def update(number: Byte, value: Dimension) =
-      dimensions(number) = value
+      locals.dimensions(number) = value
   }
 
-  /** Exposes glue register management functions. */
-  val skip: Skip
-
-  trait Skip extends Register[Glue] {
+  /** Exposes glue register management functions.
+   *
+   *  @group Registers
+   */
+  object skip extends Register[Glue] {
 
     /** Finds and returns the glue register value identified by its register number
      *  in the current environment.
      *  The default value of a glue register is `0 pt +0 pt -0 pt`.
      */
-    def apply(number: Byte): Option[Glue]
+    def apply(number: Byte): Option[Glue] =
+      lookupRegister(number, (_.glues), locals)
 
     /** Sets the value of the count register in the current environment.
      *  This value will be reseted to the previous value when leaving the current group.
      */
     def update(number: Byte, value: Glue): Unit =
-      glues(number) = value
+      locals.glues(number) = value
   }
 
-  /** Exposes muglue register management functions. */
-  val muskip: Muskip
-
-  trait Muskip extends Register[Muglue] {
+  /** Exposes muglue register management functions.
+   *
+   *  @group Registers
+   */
+  object muskip extends Register[Muglue] {
 
     /** Finds and returns the muglue register value identified by its register number
      *  in the current environment.
      *  The default value of a muglue register is `0 pt +0 pt -0 pt`.
      */
-    def apply(number: Byte): Option[Muglue]
+    def apply(number: Byte): Option[Muglue] =
+      lookupRegister(number, (_.muglues), locals)
 
     /** Sets the value of the count register in the current environment.
      *  This value will be reseted to the previous value when leaving the current group.
      */
     def update(number: Byte, value: Muglue) =
-      muglues(number) = value
+      locals.muglues(number) = value
   }
 
-  /** The current escape character */
-  var escapechar: Char
-
-  def isIf(name: String): Boolean
-
-  /** Returns the meaning of the given token in the current environment */
-  def meaning(token: Token): String = token match {
-    case CharacterToken(c, Category.BEGINNING_OF_GROUP) =>
-      "begin-group character " + c
-    case CharacterToken(c, Category.END_OF_GROUP) =>
-      "end-group character" + c
-    case CharacterToken(c, Category.OTHER_CHARACTER) =>
-      "the character " + c
-    case CharacterToken(c, Category.LETTER) =>
-      "the letter " + c
-    case CharacterToken(c, Category.PARAMETER) =>
-      "macro parameter character " + c
-    case ControlSequenceToken(name, _) if Primitives.all.contains(name) =>
-      escapechar + name
-    case ControlSequenceToken(name, _) =>
-      val esc = escapechar
-      css(name) match {
-        case Some(cs) =>
-          cs match {
-            case TeXInteger(_, number) =>
-              esc + "count" + number
-            case TeXChar(_, number) =>
-              esc + "char\"" + number
-            case TeXMathChar(_, number) =>
-              esc + "mathchar\"" + number
-            case TeXDimension(_, number) =>
-              esc + "dimen" + number
-            case TeXGlue(_, number) =>
-              esc + "skip" + number
-            case TeXMuglue(_, number) =>
-              esc + "muskip" + number
-            case TeXMacro(name, parameters, repl, long, outer) =>
-              val params = parameters map {
-                case ParameterToken(n) =>
-                  "#" + n
-                case ControlSequenceToken(name, active) =>
-                  if (active)
-                    name
-                  else
-                    esc + name
-                case CharacterToken(c, _) =>
-                  c.toString
-                case t =>
-                  throw new TeXException(s"unexpected token $t in control sequence parameters")
-              }
-              "macro:" + params + "->" + repl.reverseMap(toString).mkString
-            case TeXTokenList(_, number) =>
-              esc + "toks" + number
-            case TeXFont(_, number) =>
-              esc + "font" + number
-            case TeXCharAlias(_, _) | TeXCsAlias(_, _) =>
-              throw new TeXException(s"Undefined control sequence \\$name")
-          }
-        case None =>
-          // unknown control sequence in this environment, undefined
-          "undefined"
-      }
-  }
-
-  /*** Indicates whether this token should be expanded in the current environment */
-  def expandable(token: Token): Boolean = token match {
-    case ControlSequenceToken(name, _) =>
-      css.contains(name) || Primitives.expandablePrimitives.contains(name)
-    case _ =>
-      false
-  }
-
-  /** Makes a string out of a parsed token */
-  def toString(token: Token): String = token match {
-    case ControlSequenceToken(name, true) =>
-      // an active character is printed without escape character
-      name
-    case ControlSequenceToken(name, false) =>
-      escapechar + name
-    case CharacterToken(c, _) =>
-      c.toString
-    case _ =>
-      throw new TeXInternalException("should never happen")
-  }
-
-  def toString(tokens: List[Token]): String =
-    tokens.foldLeft("") { (acc, token) =>
-      acc + toString(token)
-    }
+  /** The current escape character.
+   *
+   *  @group Globals
+   */
+  var escapechar: Char =
+    '\\'
 
   // ==== bunch of useful extractors ====
 
   /** Extractor to determine whether a character is an ignored character in the current
-   *  environment
+   *  environment.
+   *
+   *  @group Extractors
    */
   object IGNORED_CHARACTER {
     def unapply(c: Char): Option[Char] =
@@ -305,7 +317,9 @@ abstract class TeXEnvironment {
   }
 
   /** Extractor to determine whether a character is a beginning of group character in the current
-   *  environment
+   *  environment.
+   *
+   *  @group Extractors
    */
   object BEGINNING_OF_GROUP {
     def unapply(c: Char): Option[Char] =
@@ -316,7 +330,9 @@ abstract class TeXEnvironment {
   }
 
   /** Extractor to determine whether a character is an end of group character in the current
-   *  environment
+   *  environment.
+   *
+   *  @group Extractors
    */
   object END_OF_GROUP {
     def unapply(c: Char): Option[Char] =
@@ -327,7 +343,9 @@ abstract class TeXEnvironment {
   }
 
   /** Extractor to determine whether a character is a math shift character in the current
-   *  environment
+   *  environment.
+   *
+   *  @group Extractors
    */
   object MATH_SHIFT {
     def unapply(c: Char): Option[Char] =
@@ -338,7 +356,9 @@ abstract class TeXEnvironment {
   }
 
   /** Extractor to determine whether a character is an alignment tab character in the current
-   *  environment
+   *  environment.
+   *
+   *  @group Extractors
    */
   object ALIGNMENT_TAB {
     def unapply(c: Char): Option[Char] =
@@ -349,7 +369,9 @@ abstract class TeXEnvironment {
   }
 
   /** Extractor to determine whether a character is an end of line character in the current
-   *  environment
+   *  environment.
+   *
+   *  @group Extractors
    */
   object END_OF_LINE {
     def unapply(c: Char): Option[Char] =
@@ -360,7 +382,9 @@ abstract class TeXEnvironment {
   }
 
   /** Extractor to determine whether a character is a parameter character in the current
-   *  environment
+   *  environment.
+   *
+   *  @group Extractors
    */
   object PARAMETER {
     def unapply(c: Char): Option[Char] =
@@ -371,7 +395,9 @@ abstract class TeXEnvironment {
   }
 
   /** Extractor to determine whether a character is a superscript character in the current
-   *  environment
+   *  environment.
+   *
+   *  @group Extractors
    */
   object SUPERSCRIPT {
     def unapply(c: Char): Option[Char] =
@@ -382,7 +408,9 @@ abstract class TeXEnvironment {
   }
 
   /** Extractor to determine whether a character is a subscript character in the current
-   *  environment
+   *  environment.
+   *
+   *  @group Extractors
    */
   object SUBSCRIPT {
     def unapply(c: Char): Option[Char] =
@@ -393,7 +421,9 @@ abstract class TeXEnvironment {
   }
 
   /** Extractor to determine whether a character is an escape character in the current
-   *  environment
+   *  environment.
+   *
+   *  @group Extractors
    */
   object ESCAPE_CHARACTER {
     def unapply(c: Char): Option[Char] =
@@ -404,7 +434,9 @@ abstract class TeXEnvironment {
   }
 
   /** Extractor to determine whether a character is a space character in the current
-   *  environment
+   *  environment.
+   *
+   *  @group Extractors
    */
   object SPACE {
     def unapply(c: Char): Option[Char] =
@@ -415,7 +447,9 @@ abstract class TeXEnvironment {
   }
 
   /** Extractor to determine whether a character is a letter in the current
-   *  environment
+   *  environment.
+   *
+   *  @group Extractors
    */
   object LETTER {
     def unapply(c: Char): Option[Char] =
@@ -426,7 +460,9 @@ abstract class TeXEnvironment {
   }
 
   /** Extractor to determine whether a character is an other character  in the current
-   *  environment
+   *  environment.
+   *
+   *  @group Extractors
    */
   object OTHER_CHARACTER {
     def unapply(c: Char): Option[Char] =
@@ -437,7 +473,9 @@ abstract class TeXEnvironment {
   }
 
   /** Extractor to determine whether a character is an active character  in the current
-   *  environment
+   *  environment.
+   *
+   *  @group Extractors
    */
   object ACTIVE_CHARACTER {
     def unapply(c: Char): Option[Char] =
@@ -448,7 +486,9 @@ abstract class TeXEnvironment {
   }
 
   /** Extractor to determine whether a character is a comment character  in the current
-   *  environment
+   *  environment.
+   *
+   *  @group Extractors
    */
   object COMMENT_CHARACTER {
     def unapply(c: Char): Option[Char] =
@@ -459,7 +499,9 @@ abstract class TeXEnvironment {
   }
 
   /** Extractor to determine whether a character is an invalid character  in the current
-   *  environment
+   *  environment.
+   *
+   *  @group Extractors
    */
   object INVALID_CHARACTER {
     def unapply(c: Char): Option[Char] =
@@ -471,29 +513,10 @@ abstract class TeXEnvironment {
 
   // ==== internals ====
 
-  // the map from character to category code
-  protected val categories = Map.empty[Char, Category.Value]
-
-  // the map from cs name to its internal representation
-  protected val controlSequences = Map.empty[String, ControlSequence]
-
-  // local values of the different registers
-  protected[this] val counters = Map.empty[Byte, Int]
-  // all dimension are stored as an integer multiple of one sp
-  // the biggest dimension accepted by TeX is 2^30sp, so an integer
-  // is sufficient to store it.
-  protected[this] val dimensions = Map.empty[Byte, Dimension]
-  // glues and muglues are the triple (dimension, stretch, shrink)
-  protected[this] val glues = Map.empty[Byte, Glue]
-  protected[this] val muglues = Map.empty[Byte, Muglue]
-  // contains user defined ifs in this scope
-  protected[this] val ifs = Map.empty[String, Boolean]
-  // TODO other register types
-
   // the different flags used to tune the expansion mechanism
 
   private var flags: Long = 0x0000000000000000l
-  val DEBUG_POSITION = 0x0000000000000001l
+  private val DEBUG_POSITION = 0x0000000000000001l
 
   def debugPositions: Boolean =
     (flags & DEBUG_POSITION) != 0x0
@@ -504,192 +527,6 @@ abstract class TeXEnvironment {
     else
       flags = flags ^ DEBUG_POSITION
 
-}
-
-object TeXEnvironment {
-
-  /** Creates a new root environment */
-  def apply(jobname: String): TeXEnvironment =
-    new RootTeXEnvironment(jobname)
-
-}
-
-private class SubTeXEnvironment(parent: TeXEnvironment) extends TeXEnvironment {
-
-  val root: TeXEnvironment =
-    parent.root
-
-  val jobname: String =
-    root.jobname
-
-  def state: ReadingState.Value =
-    root.state
-
-  def state_=(s: ReadingState.Value): Unit =
-    root.state = s
-
-  def mode: Mode.Value =
-    root.mode
-
-  def mode_=(m: Mode.Value): Unit =
-    root.mode = m
-
-  def leaveGroup: TeXEnvironment =
-    parent
-
-  def isIf(name: String): Boolean =
-    ifs.contains(name) || parent.isIf(name)
-
-  object category extends Category {
-
-    def apply(char: Char): Category.Value =
-      categories.get(char) match {
-        case Some(cat) => cat
-        case None =>
-          parent.category(char)
-      }
-
-  }
-
-  object css extends Css {
-
-    object global extends Global {
-
-      def apply(name: String): Option[ControlSequence] =
-        root.css(name)
-
-    }
-
-    def apply(name: String): Option[ControlSequence] =
-      controlSequences.get(name).orElse(parent.css(name))
-
-  }
-
-  object count extends Count {
-
-    def apply(number: Byte): Option[Int] =
-      counters.get(number).orElse(parent.count(number))
-
-  }
-
-  object dimen extends Dimen {
-
-    def apply(number: Byte): Option[Dimension] =
-      dimensions.get(number).orElse(parent.dimen(number))
-
-  }
-
-  object skip extends Skip {
-
-    def apply(number: Byte): Option[Glue] =
-      glues.get(number).orElse(parent.skip(number))
-
-  }
-
-  object muskip extends Muskip {
-
-    def apply(number: Byte): Option[Muglue] =
-      muglues.get(number).orElse(parent.muskip(number))
-
-  }
-
-  def escapechar: Char =
-    _escapechar match {
-      case Some(c) =>
-        c
-      case None =>
-        parent.escapechar
-    }
-
-  /** Sets the current escape character */
-  def escapechar_=(c: Char): Unit =
-    _escapechar = Some(c)
-
-  // ==== internals ====
-
-  // the internal parameters
-  private[this] var _escapechar: Option[Char] = None
-
-}
-
-private class RootTeXEnvironment(override val jobname: String) extends TeXEnvironment {
-
-  val root =
-    this
-
-  var state =
-    ReadingState.N
-
-  var mode =
-    Mode.VerticalMode
-
-  var escapechar =
-    92.toChar
-
-  def leaveGroup: TeXEnvironment =
-    throw new TeXInternalException("Cannot leave group when in top-level environment")
-
-  def isIf(name: String): Boolean =
-    ifs.contains(name) || Primitives.isIf(name)
-
-  object category extends Category {
-
-    def apply(char: Char): Category.Value =
-
-      categories.get(char) match {
-        case Some(cat) => cat
-        case None =>
-          // if not specified otherwise, UTF-8 letters are in category `letter`
-          if (char.isLetter)
-            Category.LETTER
-          else
-            Category.OTHER_CHARACTER
-      }
-
-  }
-
-  object css extends Css {
-
-    object global extends Global {
-
-      def apply(name: String): Option[ControlSequence] =
-        controlSequences.get(name)
-
-    }
-
-    def apply(name: String): Option[ControlSequence] =
-      controlSequences.get(name)
-
-  }
-
-  object count extends Count {
-
-    def apply(number: Byte): Option[Int] =
-      counters.get(number)
-
-  }
-
-  object dimen extends Dimen {
-
-    def apply(number: Byte): Option[Dimension] =
-      dimensions.get(number)
-
-  }
-
-  object skip extends Skip {
-
-    def apply(number: Byte): Option[Glue] =
-      glues.get(number)
-
-  }
-
-  object muskip extends Muskip {
-
-    def apply(number: Byte): Option[Muglue] =
-      muglues.get(number)
-
-  }
-
   // set specific categories statically known at the beginning
   // when a fresh root environment is created
   category('\n') = Category.END_OF_LINE
@@ -697,5 +534,13 @@ private class RootTeXEnvironment(override val jobname: String) extends TeXEnviro
   category(0) = Category.INVALID_CHARACTER
   category('%') = Category.COMMENT_CHARACTER
   category('\\') = Category.ESCAPE_CHARACTER
+
+}
+
+object TeXEnvironment {
+
+  /** Creates a new root environment */
+  def apply(jobname: String): TeXEnvironment =
+    new TeXEnvironment(jobname)
 
 }

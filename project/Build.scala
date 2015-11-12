@@ -36,7 +36,7 @@ object ToolXiTBuild extends Build {
   lazy val root = Project(id = "toolxit", base = file(".")) settings(
     name := "toolxit"
   ) settings(unidocSettings: _*) settings(
-    scalacOptions in (Compile, doc) ++= Seq("-doc-root-content", "rootdoc.txt")
+    scalacOptions in (Compile, doc) ++= Seq("-doc-root-content", "rootdoc.txt", "-groups")
   ) settings(globalSettings: _*) aggregate(core, eyes, mouth, stomach)
 
   lazy val scalariformSettings = defaultScalariformSettings ++ Seq(
