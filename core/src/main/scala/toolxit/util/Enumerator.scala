@@ -20,9 +20,9 @@ import scala.language.higherKinds
 
 object Enumerator {
 
-  class StreamEnumerator[Monad[+_]: Monadic, Res](_stream: LineStream) extends Enumerator[(Char, Int, Int), Monad, Res] {
+  class StreamEnumerator[Res](_stream: LineStream) extends Enumerator[(Char, Int, Int), Res] {
     private var stream = _stream
-    def apply(step: Step[(Char, Int, Int), Monad, Res]): Iteratee[(Char, Int, Int), Monad, Res] = step match {
+    def apply(step: Step[(Char, Int, Int), Res]): Iteratee[(Char, Int, Int), Res] = step match {
       case Step.Cont(k) =>
         if(stream.isEmpty) {
           k(Eoi)
@@ -40,7 +40,7 @@ object Enumerator {
     }
   }
 
-  def fromLineStream[Monad[+_]: Monadic, Res](stream: LineStream): Enumerator[(Char, Int, Int), Monad, Res] =
+  def fromLineStream[Res](stream: LineStream): Enumerator[(Char, Int, Int), Res] =
     new StreamEnumerator(stream)
 
 }

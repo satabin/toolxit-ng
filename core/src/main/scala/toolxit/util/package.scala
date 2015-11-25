@@ -30,27 +30,6 @@ import scala.concurrent.{
 
 package object util {
 
-  type Enumerator[In, Monad[+_], Out] = Step[In, Monad, Out] => Iteratee[In, Monad, Out]
-
-  type Identity[+T] = T
-
-  implicit object MonadicTry extends Monadic[Try] {
-    def unit[T](v: T): Try[T] = Success(v)
-    def error[T](t: Throwable): Try[T] = Failure(t)
-    def bind[T, U](f: T => Try[U], t: Try[T]): Try[U] = t.flatMap(f)
-  }
-
-  implicit class MonadicFuture(val ec: ExecutionContext) extends Monadic[Future] {
-    implicit def _ec = ec
-    def unit[T](v: T): Future[T] = Future.successful(v)
-    def error[T](t: Throwable): Future[T] = Future.failed(t)
-    def bind[T, U](f: T => Future[U], t: Future[T]): Future[U] = t.flatMap(f)
-  }
-
-  implicit object MonadicIdentity extends Monadic[Identity] {
-    def unit[T](v: T): Identity[T] = v
-    def error[T](t: Throwable): Identity[T] = throw t
-    def bind[T, U](f: T => Identity[U], t: Identity[T]): Identity[U] = f(t)
-  }
+  type Enumerator[In, Out] = Step[In, Out] => Iteratee[In, Out]
 
 }

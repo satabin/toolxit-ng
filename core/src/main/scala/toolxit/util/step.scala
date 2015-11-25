@@ -18,10 +18,10 @@ package util
 
 import scala.language.higherKinds
 
-sealed abstract class Step[In, Monad[+_]: Monadic, +Out]
+sealed abstract class Step[In, +Out]
 
 object Step {
-  final case class Done[Out, Monad[+_]: Monadic, In](a: Out, remaining: Input[In]) extends Step[In, Monad, Out]
-  final case class Cont[In, Monad[+_]: Monadic, +Out](k: Input[In] => Iteratee[In, Monad, Out]) extends Step[In, Monad, Out]
-  final case class Error[In, Monad[+_]: Monadic](t: Throwable, input: Input[In]) extends Step[In, Monad, Nothing]
+  final case class Done[Out, In](a: Out, remaining: Input[In]) extends Step[In, Out]
+  final case class Cont[In, +Out](k: Input[In] => Iteratee[In, Out]) extends Step[In, Out]
+  final case class Error[In](t: Throwable, input: Input[In]) extends Step[In, Nothing]
 }

@@ -31,7 +31,7 @@ import util._
  *
  *  @author Lucas Satabin
  */
-class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int), Try] {
+class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
 
   object Hexa {
     val hexaLower = "0123456789abcdef"
@@ -54,7 +54,7 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int), Try] {
    *     - `^^A` where A is a letter (< 128)
    *     - any other character
    */
-  def preprocessor(line: Int, column: Int): Iteratee[(Char, Int, Int), Try, (Char, Int, Int)] =
+  def preprocessor(line: Int, column: Int): Iteratee[(Char, Int, Int), (Char, Int, Int)] =
     peek(4).flatMap {
       case List(
         (SUPERSCRIPT(sup1), l, c),
@@ -76,7 +76,7 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int), Try] {
         throwError(EOIException(line, column))
     }
 
-  def tokenize(line: Int, column: Int): Iteratee[(Char, Int, Int), Try, Token] =
+  def tokenize(line: Int, column: Int): Iteratee[(Char, Int, Int), Token] =
     for {
       (ch, l, c) <- preprocessor(line, column)
       t <- ch match {

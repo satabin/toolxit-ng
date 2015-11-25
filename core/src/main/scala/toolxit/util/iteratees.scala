@@ -18,15 +18,17 @@ package util
 
 import scala.language.higherKinds
 
+import scala.util.Try
+
 /** An `Iteratee` consumes some input and produces some output.
  *
  *  @author Lucas Satabin
  */
-sealed abstract class Iteratee[In, Monad[+_]: Monadic, +Out] {
+sealed abstract class Iteratee[In, +Out] {
 
-  def fold[Res](folder: Step[In, Monad, Out] => Monad[Res]): Monad[Res]
+  def fold[Res](folder: Step[In, Out] => Try[Res]): Try[Res]
 
-  def flatMap[Out1](f: Out => Iteratee[In, Monad, Out1]): Iteratee[In, Monad, Out1] =
+  def flatMap[Out1](f: Out => Iteratee[In, Out1]): Iteratee[In, Out1] =
     this match {
       case Done(v, Eoi) =>
         f(v)
@@ -42,10 +44,10 @@ sealed abstract class Iteratee[In, Monad[+_]: Monadic, +Out] {
         Cont(in => k(in).flatMap(f))
     }
 
-  def map[Out1](f: Out => Out1): Iteratee[In, Monad, Out1] =
+  def map[Out1](f: Out => Out1): Iteratee[In, Out1] =
     flatMap(a => Done(f(a), Chunk(Nil)))
 
-  def withFilter(f: Out => Boolean): Iteratee[In, Monad, Out] =
+  def withFilter(f: Out => Boolean): Iteratee[In, Out] =
     this match {
       case Done(v, e) =>
         if(f(v))
@@ -59,34 +61,34 @@ sealed abstract class Iteratee[In, Monad[+_]: Monadic, +Out] {
     }
 }
 
-final case class Done[In, Monad[+_]: Monadic, Out](a: Out, e: Input[In]) extends Iteratee[In, Monad, Out] {
-  def fold[Res](folder: Step[In, Monad, Out] => Monad[Res]): Monad[Res] = folder(Step.Done(a, e))
+final case class Done[In, Out](a: Out, e: Input[In]) extends Iteratee[In, Out] {
+  def fold[Res](folder: Step[In, Out] => Try[Res]): Try[Res] = folder(Step.Done(a, e))
 }
 
-case class Error[In, Monad[+_]: Monadic](t: Throwable, e: Input[In]) extends Iteratee[In, Monad, Nothing] {
-  def fold[Res](folder: Step[In, Monad, Nothing] => Monad[Res]): Monad[Res] = folder(Step.Error(t, e))
+case class Error[In](t: Throwable, e: Input[In]) extends Iteratee[In, Nothing] {
+  def fold[Res](folder: Step[In, Nothing] => Try[Res]): Try[Res] = folder(Step.Error(t, e))
 }
 
-case class Cont[In, Monad[+_]: Monadic, Out](k: Input[In] => Iteratee[In, Monad, Out]) extends Iteratee[In, Monad, Out] {
-  def fold[Res](folder: Step[In, Monad, Out] => Monad[Res]): Monad[Res] = folder(Step.Cont(k))
+case class Cont[In, Out](k: Input[In] => Iteratee[In, Out]) extends Iteratee[In, Out] {
+  def fold[Res](folder: Step[In, Out] => Try[Res]): Try[Res] = folder(Step.Cont(k))
 }
 
 /** A bunch of useful basic iteratees.
  *
  *  @author Lucas Satabin
  */
-abstract class Iteratees[Elt, Monad[+_]: Monadic] {
+abstract class Iteratees[Elt] {
 
   /** The iteratee that is done with the specified result. */
-  def done[Res](v: Res): Iteratee[Elt, Monad, Res] =
+  def done[Res](v: Res): Iteratee[Elt, Res] =
     Done(v, Chunk(Nil))
 
   /** The iteratee that consumes no input and produces nothing */
-  val noop: Iteratee[Elt, Monad, Unit] =
+  val noop: Iteratee[Elt, Unit] =
     Done((), Chunk(Nil))
 
   /** Consumes one element from the input. */
-  def take: Iteratee[Elt, Monad, Option[Elt]] = Cont {
+  def take: Iteratee[Elt, Option[Elt]] = Cont {
     case Chunk(e :: rest) => Done(Some(e), Chunk(rest))
     case Eoi => Done(None, Eoi)
     case Chunk(Nil) => take
@@ -94,7 +96,7 @@ abstract class Iteratees[Elt, Monad[+_]: Monadic] {
 
   /** Consumes one element from the input.
    *  If the end of input was reached, throw the specified exception. */
-  def take(t: =>Throwable): Iteratee[Elt, Monad, Elt] = Cont {
+  def take(t: =>Throwable): Iteratee[Elt, Elt] = Cont {
     case Chunk(e :: rest) => Done(e, Chunk(rest))
     case Eoi => Error(t, Eoi)
     case Chunk(Nil) => take(t)
@@ -102,7 +104,7 @@ abstract class Iteratees[Elt, Monad[+_]: Monadic] {
 
   /** Consumes elements from the input as long as the predicate holds.
    *  The list of consumed document is returned. */
-  def takeWhile(p: Elt => Boolean): Iteratee[Elt, Monad, List[Elt]] = Cont {
+  def takeWhile(p: Elt => Boolean): Iteratee[Elt, List[Elt]] = Cont {
     case Chunk(l) =>
       l.takeWhile(p) match {
         case Nil  => takeWhile(p).map(rest => l ++ rest)
@@ -112,14 +114,14 @@ abstract class Iteratees[Elt, Monad[+_]: Monadic] {
   }
 
   /** Peeks one element from the input without consuming it. */
-  def peek: Iteratee[Elt, Monad, Option[Elt]] = Cont {
+  def peek: Iteratee[Elt, Option[Elt]] = Cont {
     case in @ Chunk(e :: _) => Done(Some(e), in)
     case Eoi => Done(None, Eoi)
     case Chunk(Nil) => peek
   }
 
   /** Peeks up to `n` elements from the input without consuming them. */
-  def peek(n: Int): Iteratee[Elt, Monad, List[Elt]] = Cont {
+  def peek(n: Int): Iteratee[Elt, List[Elt]] = Cont {
     case Chunk(l) if l.size >= n =>
       Done(l.take(n), Chunk(l))
     case Chunk(l1) => peek(n - l1.size).map(l2 => l1 ++ l2)
@@ -127,21 +129,21 @@ abstract class Iteratees[Elt, Monad[+_]: Monadic] {
   }
 
   /** Consumes the next element from the input, without returning it. */
-  def swallow: Iteratee[Elt, Monad, Unit] = Cont {
+  def swallow: Iteratee[Elt, Unit] = Cont {
     case Chunk(_ :: l) => Done((), Chunk(l))
     case in @ Eoi => Done((), in)
     case Chunk(Nil) => swallow
   }
 
   /** Consumes the next `n` elements from the input, without returning them. */
-  def swallow(n: Int): Iteratee[Elt, Monad, Unit] = Cont {
+  def swallow(n: Int): Iteratee[Elt, Unit] = Cont {
     case Chunk(l) if l.size >= n => Done((), Chunk(l.drop(n)))
     case Chunk(l) => swallow(n - l.size)
     case Eoi => Done((), Eoi)
   }
 
   /** Drops elements from input until the predicate gets falsified. */
-  def dropWhile(p: Elt => Boolean): Iteratee[Elt, Monad, Unit] = Cont {
+  def dropWhile(p: Elt => Boolean): Iteratee[Elt, Unit] = Cont {
     case Chunk(l) =>
       l.dropWhile(p) match {
         case Nil => dropWhile(p)
@@ -151,23 +153,23 @@ abstract class Iteratees[Elt, Monad[+_]: Monadic] {
   }
 
   /** Pushes back one element in front of the input. */
-  def pushback(e: Elt): Iteratee[Elt, Monad, Unit] = Cont {
+  def pushback(e: Elt): Iteratee[Elt, Unit] = Cont {
     case Chunk(l) => Done((), Chunk(e :: l))
     case _        => Done((), Chunk(List(e)))
   }
 
   /** Pushes back several elements in front of the input in reverse order. */
-  def pushback(el: List[Elt]): Iteratee[Elt, Monad, Unit] = Cont {
+  def pushback(el: List[Elt]): Iteratee[Elt, Unit] = Cont {
     case Chunk(l) => Done((), Chunk(el reverse_::: l))
     case _        => Done((), Chunk(el.reverse))
   }
 
   /** Throws a recoverable error. */
-  def throwError(t: Throwable): Iteratee[Elt, Monad, Nothing] =
+  def throwError(t: Throwable): Iteratee[Elt, Nothing] =
     Error(t, Chunk(Nil))
 
   /** Throws a fatal error. */
-  def throwFatal(t: Throwable): Iteratee[Elt, Monad, Nothing] =
+  def throwFatal(t: Throwable): Iteratee[Elt, Nothing] =
     Error(t, Eoi)
 
 }
