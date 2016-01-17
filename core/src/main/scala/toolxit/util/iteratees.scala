@@ -18,15 +18,11 @@ package util
 
 import scala.language.higherKinds
 
-import scala.util.Try
-
 /** An `Iteratee` consumes some input and produces some output.
  *
  *  @author Lucas Satabin
  */
 sealed abstract class Iteratee[In, +Out] {
-
-  def fold[Res](folder: Step[In, Out] => Try[Res]): Try[Res]
 
   def flatMap[Out1](f: Out => Iteratee[In, Out1]): Iteratee[In, Out1] =
     this match {
@@ -61,17 +57,11 @@ sealed abstract class Iteratee[In, +Out] {
     }
 }
 
-final case class Done[In, Out](a: Out, e: Input[In]) extends Iteratee[In, Out] {
-  def fold[Res](folder: Step[In, Out] => Try[Res]): Try[Res] = folder(Step.Done(a, e))
-}
+final case class Done[In, Out](a: Out, e: Input[In]) extends Iteratee[In, Out]
 
-case class Error[In](t: Throwable, e: Input[In]) extends Iteratee[In, Nothing] {
-  def fold[Res](folder: Step[In, Nothing] => Try[Res]): Try[Res] = folder(Step.Error(t, e))
-}
+case class Error[In](t: Throwable, e: Input[In]) extends Iteratee[In, Nothing]
 
-case class Cont[In, Out](k: Input[In] => Iteratee[In, Out]) extends Iteratee[In, Out] {
-  def fold[Res](folder: Step[In, Out] => Try[Res]): Try[Res] = folder(Step.Cont(k))
-}
+case class Cont[In, Out](k: Input[In] => Iteratee[In, Out]) extends Iteratee[In, Out]
 
 /** A bunch of useful basic iteratees.
  *
@@ -171,5 +161,11 @@ abstract class Iteratees[Elt] {
   /** Throws a fatal error. */
   def throwFatal(t: Throwable): Iteratee[Elt, Nothing] =
     Error(t, Eoi)
+
+  /** Indicates whether the input is finished. Does not consume any input. */
+  val finished: Iteratee[Elt, Boolean] = Cont {
+    case chunk @ Chunk(_) => Done(false, chunk)
+    case Eoi              => Done(true, Eoi)
+  }
 
 }

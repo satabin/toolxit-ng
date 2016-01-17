@@ -22,8 +22,8 @@ object Enumerator {
 
   class StreamEnumerator[Res](_stream: LineStream) extends Enumerator[(Char, Int, Int), Res] {
     private var stream = _stream
-    def apply(step: Step[(Char, Int, Int), Res]): Iteratee[(Char, Int, Int), Res] = step match {
-      case Step.Cont(k) =>
+    def apply(step: Iteratee[(Char, Int, Int), Res]): Iteratee[(Char, Int, Int), Res] = step match {
+      case Cont(k) =>
         if(stream.isEmpty) {
           k(Eoi)
         } else {
@@ -33,9 +33,9 @@ object Enumerator {
           stream = stream.tail
           k(Chunk(List((hd, line, col))))
         }
-      case Step.Done(v, rest) =>
+      case Done(v, rest) =>
         Done(v, rest)
-      case Step.Error(t, rest) =>
+      case Error(t, rest) =>
         Error(t, rest)
     }
   }

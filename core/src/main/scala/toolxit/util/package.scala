@@ -30,6 +30,18 @@ import scala.concurrent.{
 
 package object util {
 
-  type Enumerator[In, Out] = Step[In, Out] => Iteratee[In, Out]
+  type Enumerator[In, Out] = Iteratee[In, Out] => Iteratee[In, Out]
+
+  type Enumeratee[EltOuter, EltInner, Out] = Iteratee[EltInner, Out] => Iteratee[EltOuter, Iteratee[EltInner, Out]]
+
+  def run[In, Out](it: Iteratee[In, Out])(enum: Enumerator[In, Out]): Try[Out] = {
+    def check(it: Iteratee[In, Out]): Try[Out] =
+      it match {
+        case Done(v, _)  => Success(v)
+        case Error(e, _) => Failure(e)
+        case Cont(k)     => check(k(Eoi))
+      }
+    check(enum(it))
+  }
 
 }
