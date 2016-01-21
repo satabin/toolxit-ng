@@ -89,8 +89,8 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
           // the end of line character is then eaten as well
           for {
             () <- dropWhile {
-              case (END_OF_LINE(_), _, _) => false
-              case _                      => true
+              case ('\n', _, _) => false
+              case _            => true
             }
             // eat the end of line character
             () <- swallow
@@ -154,4 +154,3 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
 }
 
 case class TeXEyesException(line: Int, column: Int, expected: String) extends Exception
-case class EOIException(line: Int, column: Int) extends Exception

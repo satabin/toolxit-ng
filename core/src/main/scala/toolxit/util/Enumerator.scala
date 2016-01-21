@@ -20,27 +20,53 @@ import scala.language.higherKinds
 
 object Enumerator {
 
-  class StreamEnumerator[Res](_stream: LineStream) extends Enumerator[(Char, Int, Int), Res] {
-    private var stream = _stream
+  class TeXEnvironmentEnumerator[Res](env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] with Enumerator[(Char, Int, Int), Res] {
+
+    private var lineString: String = null
+    private var line: Int = 0
+    private var column: Int = 0
+
+    private def nextChar(k: Input[(Char, Int, Int)] => Iteratee[(Char, Int, Int), Res]): Iteratee[(Char, Int, Int), Res] =
+      try {
+        env.inputs.headOption match {
+          case Some(input) =>
+            if(env.endOfLineEncountered) {
+              // don't care about the rest of the line, just go ahead
+              input.nextLine()
+              // and of course reset this state
+              env.endOfLineEncountered = false
+            }
+            input.nextChar() match {
+              case Some(c) =>
+                if(env.endinputEncountered && c._1 == '\n') {
+                  // we must close the input
+                  input.close()
+                  env.inputs.pop
+                }
+                k(Chunk(List(c)))
+              case None =>
+                // the input is exhausted go back to the old one
+                // after having closed the current one
+                input.close()
+                env.inputs.pop
+                // and re-read
+                nextChar(k)
+            }
+          case None =>
+            throwError(EOIException(env.lastPosition.line, env.lastPosition.column))
+        }
+      } catch {
+        case e: Exception =>
+          throwError(new TeXException("Something wrong happened", e))
+      }
+
     def apply(step: Iteratee[(Char, Int, Int), Res]): Iteratee[(Char, Int, Int), Res] = step match {
       case Cont(k) =>
-        if(stream.isEmpty) {
-          k(Eoi)
-        } else {
-          val hd = stream.head
-          val line = stream.lineNum
-          val col = stream.colNum
-          stream = stream.tail
-          k(Chunk(List((hd, line, col))))
-        }
-      case Done(v, rest) =>
-        Done(v, rest)
-      case Error(t, rest) =>
-        Error(t, rest)
+        nextChar(k)
+      case _ =>
+        step
     }
-  }
 
-  def fromLineStream[Res](stream: LineStream): Enumerator[(Char, Int, Int), Res] =
-    new StreamEnumerator(stream)
+  }
 
 }

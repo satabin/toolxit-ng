@@ -29,3 +29,5 @@ class TeXInternalException(msg: String, inner: Throwable) extends Exception(msg,
 }
 
 class ControlSequenceException(msg: String) extends TeXException(msg)
+
+case class EOIException(line: Int, column: Int) extends Exception

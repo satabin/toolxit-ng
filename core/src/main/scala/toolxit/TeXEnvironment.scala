@@ -19,7 +19,10 @@ import dimen._
 
 import util._
 
-import scala.collection.mutable.Map
+import scala.collection.mutable.{
+  Map,
+  Stack
+}
 
 import scala.annotation.tailrec
 
@@ -103,11 +106,25 @@ class TeXEnvironment(_jobname: String) {
   var expanding: Boolean =
     true
 
-  /** The current end input state.
+  /** The stack of opened inputs. The current read input stream is on the top.
+   *
+   *  @group Globals
+   */
+  val inputs: Stack[LineReader] =
+    Stack.empty[LineReader]
+
+  /** Indicates whether an `\endinput` control sequence has been encountered.
    *
    *  @group Globals
    */
   var endinputEncountered: Boolean =
+    false
+
+  /** Indicates whether an END_OF_LINE character has been encountered.
+   *
+   *  @group Globals
+   */
+  var endOfLineEncountered: Boolean =
     false
 
   /** The last token position.
