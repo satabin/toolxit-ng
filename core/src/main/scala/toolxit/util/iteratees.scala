@@ -168,4 +168,18 @@ abstract class Iteratees[Elt] {
     case Eoi              => Done(true, Eoi)
   }
 
+  /** A backtracking-free non deterministic choice. The first iteratees that finishes is the right one. */
+  def choice[Out](it1: Iteratee[Elt, Out], it2: Iteratee[Elt, Out]): Iteratee[Elt, Out] =
+    (it1, it2) match {
+      case (Done(_, _), _)      => it1
+      case (_, Done(_, _))      => it2
+      case (Error(_, _), _)     => it2
+      case (_, Error(_, _))     => it1
+      case (Cont(k1), Cont(k2)) => Cont { in =>
+        val i1 = k1(in)
+        val i2 = k2(in)
+        choice(i1, i2)
+      }
+    }
+
 }
