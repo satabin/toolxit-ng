@@ -78,7 +78,7 @@ abstract class Iteratees[Elt] {
     Done((), Chunk(Nil))
 
   /** Consumes one element from the input. */
-  def take: Iteratee[Elt, Option[Elt]] = Cont {
+  val take: Iteratee[Elt, Option[Elt]] = Cont {
     case Chunk(e :: rest) => Done(Some(e), Chunk(rest))
     case Eoi => Done(None, Eoi)
     case Chunk(Nil) => take
@@ -104,7 +104,7 @@ abstract class Iteratees[Elt] {
   }
 
   /** Peeks one element from the input without consuming it. */
-  def peek: Iteratee[Elt, Option[Elt]] = Cont {
+  val peek: Iteratee[Elt, Option[Elt]] = Cont {
     case in @ Chunk(e :: _) => Done(Some(e), in)
     case Eoi => Done(None, Eoi)
     case Chunk(Nil) => peek
@@ -119,7 +119,7 @@ abstract class Iteratees[Elt] {
   }
 
   /** Consumes the next element from the input, without returning it. */
-  def swallow: Iteratee[Elt, Unit] = Cont {
+  val swallow: Iteratee[Elt, Unit] = Cont {
     case Chunk(_ :: l) => Done((), Chunk(l))
     case in @ Eoi => Done((), in)
     case Chunk(Nil) => swallow

@@ -17,7 +17,10 @@ package toolxit.util
 
 import java.io.File
 
-sealed trait Position
+sealed trait Position {
+  val line: Int
+  val column: Int
+}
 
 /** A position in a file which is simply a line and a column
  *
@@ -32,6 +35,10 @@ case class SimplePosition(line: Int, column: Int) extends Position {
 
 case class StackedPosition(current: Position, next: Position) extends Position {
 
+  val line = current.line
+
+  val column = current.column
+
   override def toString =
     f"$current expanded from position $next"
 
@@ -39,6 +46,10 @@ case class StackedPosition(current: Position, next: Position) extends Position {
 
 /** The empty position */
 object NoPosition extends Position {
+
+  val line = -1
+
+  val column = -1
 
   override def toString =
     "<unknown position>"

@@ -17,6 +17,8 @@ package toolxit
 
 import dimen._
 
+import util._
+
 import scala.collection.mutable.Map
 
 import scala.annotation.tailrec
@@ -41,7 +43,6 @@ import scala.annotation.tailrec
  *
  */
 class TeXEnvironment(_jobname: String) {
-  self =>
 
   // defines the registeres that get stacked when entering groups
   // registers allow for local definitions
@@ -94,6 +95,27 @@ class TeXEnvironment(_jobname: String) {
    */
   var mode: Mode.Value =
     Mode.VerticalMode
+
+  /** The current expansion state.
+   *
+   *  @group Globals
+   */
+  var expanding: Boolean =
+    true
+
+  /** The current end input state.
+   *
+   *  @group Globals
+   */
+  var endinputEncountered: Boolean =
+    false
+
+  /** The last token position.
+   *
+   *  @group Globals
+   */
+  var lastPosition: Position =
+    NoPosition
 
   /** Enters a new group and returns the new environment local to this group.
    *

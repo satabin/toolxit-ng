@@ -16,11 +16,7 @@
 package toolxit
 package eyes
 
-import scala.util.{
-  Try,
-  Success,
-  Failure
-}
+import scala.util.Try
 
 import util._
 
@@ -32,6 +28,8 @@ import util._
  *  @author Lucas Satabin
  */
 class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
+
+  type Processor[T] = Iteratee[(Char, Int, Int), T]
 
   object Hexa {
     val hexaLower = "0123456789abcdef"
@@ -54,7 +52,7 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
    *     - `^^A` where A is a letter (< 128)
    *     - any other character
    */
-  def preprocessor(line: Int, column: Int): Iteratee[(Char, Int, Int), (Char, Int, Int)] =
+  val preprocessor: Processor[(Char, Int, Int)] =
     peek(4).flatMap {
       case List(
         (SUPERSCRIPT(sup1), l, c),
@@ -73,19 +71,19 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
         for(() <- swallow)
           yield (ch, l, c)
       case Nil =>
-        throwError(EOIException(line, column))
+        throwError(EOIException(env.lastPosition.line, env.lastPosition.column))
     }
 
-  def tokenize(line: Int, column: Int): Iteratee[(Char, Int, Int), Token] =
+  val tokenize: Processor[Token] =
     for {
-      (ch, l, c) <- preprocessor(line, column)
+      (ch, l, c) <- preprocessor
       t <- ch match {
         case IGNORED_CHARACTER(_) =>
           // the obvious case is to ignore currently ignored characters
-          tokenize(l, c)
+          tokenize
         case SPACE(_) if state == ReadingState.S || state == ReadingState.N =>
           // when in reading state 'skipping blanks' or 'new line', spaces are ignored as well
-          tokenize(l, c)
+          tokenize
         case COMMENT_CHARACTER(_) =>
           // when a comment started it lasts until the end of line is reached
           // the end of line character is then eaten as well
@@ -97,7 +95,7 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
             // eat the end of line character
             () <- swallow
             Some((_, l, c)) <- peek
-            t <- tokenize(l, c)
+            t <- tokenize
           } yield t
         case ACTIVE_CHARACTER(ch) =>
           // an active character is control sequence, and after control sequence we go into
@@ -135,7 +133,7 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
           done(CharacterToken(' ', Category.SPACE).atPos(SimplePosition(l, c)))
         case END_OF_LINE(_) =>
           // otherwise we are skipping blank characters, so just ignore it
-          tokenize(l, c)
+          tokenize
         case SPACE(_) =>
           // if this is a space character, we go into the 'skipping blanks' reading state
           // the space token is always ' ' even if it were some other characters that
@@ -148,7 +146,10 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
           env.state = ReadingState.M
           done(CharacterToken(ch, category(ch)).atPos(SimplePosition(l, c)))
       }
-    } yield t
+    } yield {
+      env.lastPosition = t.pos
+      t
+    }
 
 }
 
