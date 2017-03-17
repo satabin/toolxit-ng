@@ -89,8 +89,8 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
           // the end of line character is then eaten as well
           for {
             () <- dropWhile {
-              case ('\n', _, _) => false
-              case _            => true
+              case (END_OF_LINE(_), _, _) => false
+              case _                      => true
             }
             // eat the end of line character
             () <- swallow
