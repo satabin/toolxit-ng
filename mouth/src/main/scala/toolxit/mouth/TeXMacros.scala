@@ -18,15 +18,7 @@ package mouth
 
 import dimen.Dimension
 
-import util.Position
-
-import scala.util.{
-  Try,
-  Success,
-  Failure
-}
-
-import scala.annotation.tailrec
+import util._
 
 /** The macros and expansion mechanisms described in chapter 20 of the TeX Book are done here.
  *
@@ -41,90 +33,93 @@ trait TeXMacros {
    *  <macro def> ::= \def <control sequence> <parameter text> { <replacement text> }
    *  }}}
    */
-  def parseMacroDef(long: Boolean, outer: Boolean, global: Boolean): Try[(Boolean, TeXMacro)] = {
+  def macroDef(long: Boolean, outer: Boolean, global: Boolean): Processor[(Boolean, TeXMacro)] = {
 
     // a macro name is an unexpanded control sequence
-    def parseName(): Try[String] =
-      read().flatMap {
+    def name: Processor[String] =
+      read.flatMap {
         case ControlSequenceToken(name, _) =>
-          swallow()
-          Success(name)
+          for(() <- swallow)
+            yield name
         case t =>
-          Failure(new TeXMouthException(f"Macro name must be a control sequence or an active character", t.pos))
+          throwError(new TeXMouthException(f"Macro name must be a control sequence or an active character", t.pos))
       }
 
-    def parseParameters(): Try[(Boolean, List[Token])] = {
-      @tailrec
-      def loop(nextParam: Int, acc: List[Token]): Try[(Boolean, List[Token])] = read() match {
-        case Success(CharacterToken(_, Category.PARAMETER)) =>
-          // here comes a parameter, we expect the correct number afterward
-          swallow()
-          read() match {
-            case Success(CharacterToken(int(i), _)) if i == nextParam =>
-              // this is a correct parameter consume its number
-              swallow()
-              // and go forward
-              loop(nextParam + 1, ParameterToken(i) :: acc)
-            case Success(tok @ CharacterToken(_, Category.BEGINNING_OF_GROUP)) =>
-              // this is the `#{` sequence at the end of the parameter list
-              // a kind of special sequence which inserts a `{' at both the end of the parameter
-              // list and the replacement text
-              Success(true, (tok :: acc).reverse)
-            case Success(tok) =>
-              // wrong parameter number
-              Failure(new TeXMouthException(f"Parameters must be numbered consecutively. Got $tok but expected $nextParam", tok.pos))
-          }
+    def parameters: Processor[(Boolean, List[Token])] = {
+      def loop(nextParam: Int, acc: List[Token]): Processor[(Boolean, List[Token])] = raw.flatMap {
+        case CharacterToken(_, Category.PARAMETER) =>
+          for {
+            // here comes a parameter, we expect the correct number afterward
+            () <- swallow
+            res <- raw.flatMap {
+              case CharacterToken(int(i), _) if i == nextParam =>
+                for {
+                  // this is a correct parameter consume its number
+                  () <- swallow
+                  // and go forward
+                  res <- loop(nextParam + 1, ParameterToken(i) :: acc)
+                } yield res
+              case tok @ CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
+                // this is the `#{` sequence at the end of the parameter list
+                // a kind of special sequence which inserts a `{' at both the end of the parameter
+                // list and the replacement text
+                done((true, (tok :: acc).reverse))
+              case tok =>
+                // wrong parameter number
+                throwError(new TeXMouthException(f"Parameters must be numbered consecutively. Got $tok but expected $nextParam", tok.pos))
+            }
+          } yield res
 
-        case Success(CharacterToken(_, Category.BEGINNING_OF_GROUP)) =>
+        case CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
           // we reached the end of the parameter list return it
-          Success(false, acc.reverse)
+          done((false, acc.reverse))
 
-        case Success(tok @ ControlSequenceToken(name, _)) if env.css.isOuter(name) =>
+        case tok @ ControlSequenceToken(name, _) if env.css.isOuter(name) =>
           // macro declared as `outer' are not allowed in the parameter text
-          Failure(new TeXMouthException(f"Macro $name declared as `\\outer` is not allowed in parameter text", tok.pos))
+          throwError(new TeXMouthException(f"Macro $name declared as `\\outer` is not allowed in parameter text", tok.pos))
 
-        case Success(token) =>
-          // any other character is added to the current list of parameters
-          swallow()
-          loop(nextParam, token :: acc)
+        case token =>
+          for {
+            // any other character is added to the current list of parameters
+            () <- swallow
+            res <- loop(nextParam, token :: acc)
+          } yield res
 
-        case Failure(t) =>
-          Failure(t)
       }
       loop(1, Nil)
     }
 
-    def parseMacroDecl(global: Boolean): Try[(Boolean, Boolean, String, List[Token], Boolean)] = read() flatMap {
+    def macroDecl(global: Boolean): Processor[(Boolean, Boolean, String, List[Token], Boolean)] = read.flatMap {
       case ControlSequenceToken("def", _) =>
-        swallow()
         for {
-          name <- parseName()
-          (appendBrace, params) <- parseParameters()
+          () <- swallow
+          name <- name
+          (appendBrace, params) <- parameters
         } yield (global, false, name, params, appendBrace)
       case ControlSequenceToken("gdef", _) =>
-        swallow()
         for {
-          name <- parseName()
-          (appendBrace, params) <- parseParameters()
+          () <- swallow
+          name <- name
+          (appendBrace, params) <- parameters
         } yield (true, false, name, params, appendBrace)
       case ControlSequenceToken("edef", _) =>
-        swallow()
         for {
-          name <- parseName()
-          (appendBrace, params) <- parseParameters()
+          () <- swallow
+          name <- name
+          (appendBrace, params) <- parameters
         } yield (false, true, name, params, appendBrace)
       case ControlSequenceToken("xdef", _) =>
-        swallow()
         for {
-          name <- parseName()
-          (appendBrace, params) <- parseParameters()
+          () <- swallow
+          name <- name
+          (appendBrace, params) <- parameters
         } yield (true, true, name, params, appendBrace)
       case t =>
-        Failure(new TeXMouthException(f"Unexpected token when parsing macro declaration $t", t.pos))
+        throwError(new TeXMouthException(f"Macro definition expected", t.pos))
     }
 
-    def parseReplacement(appendBrace: Boolean): Try[List[Token]] =
-      parseGroup(true, false).map {
+    def replacement(appendBrace: Boolean): Processor[List[Token]] =
+      group(true, false).map {
         case GroupToken(_, tokens, _) =>
           if (appendBrace)
             CharacterToken('{', Category.BEGINNING_OF_GROUP) :: tokens
@@ -132,17 +127,17 @@ trait TeXMacros {
             tokens
       }
 
-    read() flatMap {
+    read.flatMap {
       case ControlSequenceToken("def" | "gdef" | "edef" | "xdef", _) =>
         for {
           // first comes the declaration (and tokens are not expanded during this phase)
-          (global, expanded, name, params, appendBrace) <- withExpansion(false)(parseMacroDecl(global))
+          (global, expanded, name, params, appendBrace) <- macroDecl(global)
           // and the replacement text expanded only if needed
-          replacement <- withExpansion(expanded)(parseReplacement(appendBrace))
+          replacement <- withExpansion(expanded)(replacement(appendBrace))
         } yield (global, TeXMacro(name, params, replacement, long, outer))
 
       case t =>
-        Failure(new TeXMouthException(f"Unexpected token when parsing macro declaration $t", t.pos))
+        throwError(new TeXMouthException(f"Unexpected token when parsing macro declaration $t", t.pos))
 
     }
 
@@ -157,316 +152,319 @@ trait TeXMacros {
    *  Arguments are returned in order, but the tokens of each argument are returned in
    *  reverse order.
    */
-  private def parseArguments(long: Boolean, parameters: List[Token]): Try[List[List[Token]]] = {
-    @tailrec
-    def loop(parameters: List[Token], stop: Option[Token], localAcc: List[Token], acc: List[List[Token]]): Try[List[List[Token]]] = stop match {
+  private def arguments(long: Boolean, parameters: List[Token]): Processor[List[List[Token]]] = {
+    def loop(parameters: List[Token], stop: Option[Token], localAcc: List[Token], acc: List[List[Token]]): Processor[List[List[Token]]] = stop match {
       case Some(stop) =>
         // we must read until the stop token has been reached
         // if the macro was declared as long, then \par is allowed.
-        raw() match {
-          case Success(tok @ ControlSequenceToken(name, _)) if env.css.isOuter(name) =>
-            Failure(new TeXMouthException("Outer macros are not authorized in macro parameterf", tok.pos))
-          case Success(tok @ ControlSequenceToken("par", _)) if !long =>
-            Failure(new TeXMouthException("Runaway argument. new paragraph is not allowed in the parameter list", tok.pos))
-          case Success(tok) if tok == stop =>
+        raw.flatMap {
+          case tok @ ControlSequenceToken(name, _) if env.css.isOuter(name) =>
+            throwError(new TeXMouthException("Outer macros are not authorized in macro parameterf", tok.pos))
+          case tok @ ControlSequenceToken("par", _) if !long =>
+            throwError(new TeXMouthException("Runaway argument. new paragraph is not allowed in the parameter list", tok.pos))
+          case tok if tok == stop =>
             loop(parameters, None, Nil, localAcc :: acc)
-          case Success(tok) =>
+          case tok =>
             loop(parameters, Some(stop), tok :: localAcc, acc)
-          case Failure(t) =>
-            Failure(t)
         }
       case None =>
         parameters match {
           case Nil =>
-            Success(acc.reverse)
+            done(acc.reverse)
           case ParameterToken(_) :: rest =>
             rest match {
               case Nil | ParameterToken(_) :: _ =>
-                // an undelimited parameter
-                raw() match {
-                  case Success(t) =>
-                    loop(rest, None, Nil, List(t) :: acc)
-                  case Failure(t) =>
-                    Failure(t)
-                }
+                for {
+                  // an undelimited parameter
+                  t <- raw
+                  res <- loop(rest, None, Nil, List(t) :: acc)
+                } yield res
               case token :: rest =>
                 loop(rest, Some(token), Nil, acc)
             }
           case (token @ (ControlSequenceToken(_, _) | CharacterToken(_, _))) :: rest =>
-            // this is a delimiter token, accept it and go forward
-            eat(token) match {
-              case Success(()) =>
-                loop(rest, None, Nil, acc)
-              case Failure(t) =>
-                Failure(t)
-            }
+            for {
+              // this is a delimiter token, accept it and go forward
+              () <- accept(token)
+              res <- loop(rest, None, Nil, acc)
+            } yield res
           case (token @ GroupToken(_, _, _)) :: _ =>
-            Failure(new TeXMouthException("Groups are not allowed in macro parameter listf", token.pos))
+            throwError(new TeXMouthException("Groups are not allowed in macro parameter listf", token.pos))
         }
 
     }
     loop(parameters, None, Nil, Nil)
   }
 
-  final def expandCs(cs: ControlSequence, pos: Position): Try[Token] =
+  final def expandCs(cs: ControlSequence, pos: Position): Processor[Token] =
     cs match {
       case TeXMacro(_, parameters, replacement, long, outer) =>
-        // consume the macro name name
-        swallow()
-        // parse the arguments
-        parseArguments(long, parameters) flatMap { args =>
+        for {
+          // consume the macro name name
+          () <- swallow
+          // parse the arguments
+          args <- arguments(long, parameters)
           // we then push back the replacement text onto the token stack
           // replacing as it goes the parameters by the parsed ones.
-          replacement.foreach {
+          args1 = replacement.flatMap {
             case ParameterToken(i) =>
               // by construction (with the parser) the parameter exists
-              val arg =
-                if(env.debugPositions)
-                  args(i).map(a => a.atPos(pos, Some(a.pos)))
-                else
-                  args(i)
-              pushback(arg)
+              if(env.debugPositions)
+                args(i).map(a => a.atPos(pos, Some(a.pos)))
+              else
+                args(i)
             case token =>
-              pushback(token)
+              List(token)
           }
+          () <- pushback(args1)
           // and read again
-          read()
-
-        }
+          t <- read
+        } yield t
       case _ =>
         ???
     }
 
-  def expandIf(): Try[Token] =
-    raw() flatMap {
+  def expandIf: Processor[Token] =
+    raw.flatMap {
       case ControlSequenceToken("ifnum", _) =>
-        swallow()
         for {
-          n1 <- parseNumber()
-          rel <- parseRel[Int]()
-          n2 <- parseNumber()
-          () <- parseIfBody(rel(n1, n2))
-          t <- read()
+          () <- swallow
+          n1 <- number
+          rel <- rel[Int]()
+          n2 <- number
+          () <- ifBody(rel(n1, n2))
+          t <- read
         } yield t
 
       case ControlSequenceToken("ifdim", _) =>
-        swallow()
         for {
-          d1 <- parseDimen()
-          rel <- parseRel[Dimension]()
-          d2 <- parseDimen()
-          () <- parseIfBody(rel(d1, d2))
-          t <- read()
+          () <- swallow
+          d1 <- dimen
+          rel <- rel[Dimension]()
+          d2 <- dimen
+          () <- ifBody(rel(d1, d2))
+          t <- read
         } yield t
 
       case ControlSequenceToken("ifodd", _) =>
-        swallow()
         for {
-          n <- parseNumber()
-          () <- parseIfBody(n % 2 == 1)
-          t <- read()
+          () <- swallow
+          n <- number
+          () <- ifBody(n % 2 == 1)
+          t <- read
         } yield t
 
       case ControlSequenceToken("ifvmode", _) =>
-        swallow()
         for {
-          () <- parseIfBody(env.mode == Mode.VerticalMode || env.mode == Mode.InternalVerticalMode)
-          t <- read()
+          () <- swallow
+          () <- ifBody(env.mode == Mode.VerticalMode || env.mode == Mode.InternalVerticalMode)
+          t <- read
         } yield t
 
       case ControlSequenceToken("ifhmode", _) =>
-        swallow()
         for {
-          () <- parseIfBody(env.mode == Mode.HorizontalMode || env.mode == Mode.RestrictedHorizontalMode)
-          t <- read()
+          () <- swallow
+          () <- ifBody(env.mode == Mode.HorizontalMode || env.mode == Mode.RestrictedHorizontalMode)
+          t <- read
         } yield t
 
       case ControlSequenceToken("ifmmode", _) =>
-        swallow()
         for {
-          () <- parseIfBody(env.mode == Mode.MathMode || env.mode == Mode.DisplayMathMode)
-          t <- read()
+          () <- swallow
+          () <- ifBody(env.mode == Mode.MathMode || env.mode == Mode.DisplayMathMode)
+          t <- read
         } yield t
 
       case ControlSequenceToken("ifinner", _) =>
-        swallow()
         for {
-          () <- parseIfBody(env.mode == Mode.InternalVerticalMode || env.mode == Mode.RestrictedHorizontalMode || env.mode == Mode.MathMode)
-          t <- read()
+          () <- swallow
+          () <- ifBody(env.mode == Mode.InternalVerticalMode || env.mode == Mode.RestrictedHorizontalMode || env.mode == Mode.MathMode)
+          t <- read
         } yield t
 
       case ControlSequenceToken("ifcase", _) =>
-        swallow()
         for {
-          n <- parseNumber()
-          () <- parseCaseBody(n)
-          t <- read()
+          () <- swallow
+          n <- number
+          () <- caseBody(n)
+          t <- read
         } yield t
 
       case t =>
-        Failure(new TeXMouthException("if construct expected", t.pos))
+        throwError(new TeXMouthException("if construct expected", t.pos))
     }
 
-  private def parseRel[T: Ordering](): Try[(T, T) => Boolean] = {
+  private def rel[T: Ordering](): Processor[(T, T) => Boolean] = {
     val ordering = implicitly[Ordering[T]]
-    read() flatMap {
+    read.flatMap {
       case CharacterToken('<', Category.OTHER_CHARACTER) =>
-        swallow()
-        Success(ordering.lt)
+        for(() <- swallow)
+          yield ordering.lt
       case CharacterToken('>', Category.OTHER_CHARACTER) =>
-        swallow()
-        Success(ordering.gt)
+        for(() <- swallow)
+          yield ordering.gt
       case CharacterToken('=', Category.OTHER_CHARACTER) =>
-        swallow()
-        Success(ordering.equiv)
+        for(() <- swallow)
+          yield ordering.equiv
       case t =>
-        Failure(new TeXMouthException("Integer relation operator expected", t.pos))
+        throwError(new TeXMouthException("Integer relation operator expected", t.pos))
     }
   }
 
   /* if the condition is `true`, we keep the (unexpanded) tokens until the next matching
    * `\else` or `\fi`. Otherwise, skip the first branch and keep the (unexpanded) tokens until the next matching `\fi`.
    * User defined ifs are taken into account when skipping over an if-branch to pair ifs and fis together. */
-  private def parseIfBody(cond: Boolean): Try[Unit] = withExpansion(false) {
-    @tailrec
-    def parseThen(lvl: Int, acc: List[Token]): Try[List[Token]] =
-      read() match {
-        case Success(ControlSequenceToken("else" | "fi", _)) if lvl == 0 =>
-          Success(acc)
-        case Success(t @ ControlSequenceToken("fi", _)) =>
-          swallow()
-          parseThen(lvl - 1, t :: acc)
-        case Success(If(t)) =>
-          swallow()
-          parseThen(lvl + 1, t :: acc)
-        case Success(t) =>
-          swallow()
-          parseThen(lvl, t :: acc)
-        case Failure(t) =>
-          Failure(t)
+  private def ifBody(cond: Boolean): Processor[Unit] = {
+    def then_(lvl: Int, acc: List[Token]): Processor[List[Token]] =
+      raw.flatMap {
+        case ControlSequenceToken("else" | "fi", _) if lvl == 0 =>
+          done(acc)
+        case t @ ControlSequenceToken("fi", _) =>
+          for {
+            () <- swallow
+            t <- then_(lvl - 1, t :: acc)
+          } yield t
+        case If(t) =>
+          for {
+            () <- swallow
+            t <- then_(lvl + 1, t :: acc)
+          } yield t
+        case t =>
+          for {
+            () <- swallow
+            t <- then_(lvl, t :: acc)
+          } yield t
       }
-    @tailrec
-    def parseElse(lvl: Int, acc: List[Token]): Try[List[Token]] =
-      read() match {
-        case Success(ControlSequenceToken("else", _)) if lvl == 0 =>
-          // drop the else
-          swallow()
-          parseElse(lvl, acc)
-        case Success(ControlSequenceToken("fi", _)) if lvl == 0 =>
-          swallow()
-          Success(acc)
-        case Success(t @ ControlSequenceToken("fi", _)) =>
-          swallow()
-          parseElse(lvl - 1, t :: acc)
-        case Success(If(t)) =>
-          swallow()
-          parseElse(lvl + 1, t :: acc)
-        case Success(t) =>
-          swallow()
-          parseElse(lvl, t :: acc)
-        case Failure(t) =>
-          Failure(t)
+    def else_(lvl: Int, acc: List[Token]): Processor[List[Token]] =
+      raw.flatMap {
+        case ControlSequenceToken("else", _) if lvl == 0 =>
+          for {
+            // drop the else
+            () <- swallow
+            e <- else_(lvl, acc)
+          } yield e
+        case ControlSequenceToken("fi", _) if lvl == 0 =>
+          for(() <- swallow)
+            yield acc
+        case t @ ControlSequenceToken("fi", _) =>
+          for {
+            () <- swallow
+            e <- else_(lvl - 1, t :: acc)
+          } yield e
+        case If(t) =>
+          for {
+            () <- swallow
+            e <- else_(lvl + 1, t :: acc)
+          } yield e
+        case t =>
+          for {
+            () <- swallow
+            e <- else_(lvl, t :: acc)
+          } yield e
       }
 
     for {
-      t <- parseThen(0, Nil)
-      e <- parseElse(0, Nil)
-    } yield if(cond) {
-      pushback(t)
-    } else {
-      pushback(e)
-    }
+      t <- then_(0, Nil)
+      e <- else_(0, Nil)
+      () <- if(cond) pushback(t) else pushback(e)
+    } yield ()
   }
 
-  private def parseCaseBody(n: Int): Try[Unit] = withExpansion(false) {
+  private def caseBody(n: Int): Processor[Unit] = {
     import scala.collection.mutable.Builder
-    @tailrec
-    def parseCases(lvl: Int, acc: Builder[List[Token], Vector[List[Token]]], current: List[Token]): Try[Vector[List[Token]]] =
-      read() match {
-        case Success(ControlSequenceToken("else" | "fi", _)) if lvl == 0 =>
+    def cases(lvl: Int, acc: Builder[List[Token], Vector[List[Token]]], current: List[Token]): Processor[Vector[List[Token]]] =
+      raw.flatMap {
+        case ControlSequenceToken("else" | "fi", _) if lvl == 0 =>
           current match {
             case Nil =>
-              Success(acc.result)
+              done(acc.result)
             case _ =>
-              Success((acc +=current).result)
+              done((acc +=current).result)
           }
-        case Success(t @ ControlSequenceToken("fi", _)) =>
-          swallow()
-          parseCases(lvl - 1, acc, t :: current)
-        case Success(If(t)) =>
-          swallow()
-          parseCases(lvl + 1, acc, t :: current)
-        case Success(ControlSequenceToken("or", _)) =>
-          // drop the or
-          swallow()
-          parseCases(lvl, acc += current, Nil)
-        case Success(t) =>
-          swallow()
-          parseCases(lvl, acc, t :: current)
-        case Failure(t) =>
-          Failure(t)
+        case t @ ControlSequenceToken("fi", _) =>
+          for {
+            () <- swallow
+            c <- cases(lvl - 1, acc, t :: current)
+          } yield c
+        case If(t) =>
+          for {
+            () <- swallow
+            c <- cases(lvl + 1, acc, t :: current)
+          } yield c
+        case ControlSequenceToken("or", _) =>
+          for {
+            // drop the or
+            () <- swallow
+            c <- cases(lvl, acc += current, Nil)
+          } yield c
+        case t =>
+          for {
+            () <- swallow
+            c <- cases(lvl, acc, t :: current)
+          } yield c
       }
-    @tailrec
-    def parseElse(lvl: Int, acc: List[Token]): Try[List[Token]] =
-      read() match {
-        case Success(ControlSequenceToken("else", _)) if lvl == 0 =>
-          // drop the else
-          swallow()
-          parseElse(lvl, acc)
-        case Success(ControlSequenceToken("fi", _)) if lvl == 0 =>
-          swallow()
-          Success(acc)
-        case Success(t @ ControlSequenceToken("fi", _)) =>
-          swallow()
-          parseElse(lvl - 1, t :: acc)
-        case Success(If(t)) =>
-          swallow()
-          parseElse(lvl + 1, t :: acc)
-        case Success(t) =>
-          swallow()
-          parseElse(lvl, t :: acc)
-        case Failure(t) =>
-          Failure(t)
+    def else_(lvl: Int, acc: List[Token]): Processor[List[Token]] =
+      raw.flatMap {
+        case ControlSequenceToken("else", _) if lvl == 0 =>
+          for {
+            // drop the else
+            () <- swallow
+            e <- else_(lvl, acc)
+          } yield e
+        case ControlSequenceToken("fi", _) if lvl == 0 =>
+          for(() <- swallow)
+            yield acc
+        case t @ ControlSequenceToken("fi", _) =>
+          for {
+            () <- swallow
+            e <- else_(lvl - 1, t :: acc)
+          } yield e
+        case If(t) =>
+          for {
+            () <- swallow
+            e <- else_(lvl + 1, t :: acc)
+          } yield e
+        case t =>
+          for {
+            () <- swallow
+            e <- else_(lvl, t :: acc)
+          } yield e
       }
 
     for {
-      cs <- parseCases(0, Vector.newBuilder[List[Token]], Nil)
-      e <- parseElse(0, Nil)
+      cs <- cases(0, Vector.newBuilder[List[Token]], Nil)
+      e <- else_(0, Nil)
     } yield cs.applyOrElse(n, e)
   }
 
-  def expandInput(): Try[Token] =
-    raw() match {
-      case Success(ControlSequenceToken("input", _)) =>
-        // read the filename which consists in all the consecutive non space character tokens following the input macro
-        swallow()
-        @tailrec
-        def loop(acc: StringBuilder): Try[String] =
-          read() match {
-            case Success(CharacterToken(_, Category.SPACE) | ControlSequenceToken(_, _)) if acc.nonEmpty =>
-              val acc1 =
-                if(acc.endsWith(".tex"))
-                  acc
-                else
-                  acc.append(".tex")
-              Success(acc1.toString)
-            case Success(CharacterToken(c, _)) =>
-              loop(acc.append(c))
-            case Success(t) =>
-              Failure(new TeXMouthException("Missing input file name", t.pos))
-            case Failure(t) =>
-              Failure(t)
-          }
+  def expandInput: Processor[Token] = {
+    def loop(acc: StringBuilder): Processor[String] =
+      read.flatMap {
+        case CharacterToken(_, Category.SPACE) | ControlSequenceToken(_, _) if acc.nonEmpty =>
+          val acc1 =
+            if(acc.endsWith(".tex"))
+              acc
+            else
+              acc.append(".tex")
+          done(acc1.toString)
+        case CharacterToken(c, _) =>
+          loop(acc.append(c))
+        case t =>
+          throwError(new TeXMouthException("Missing input file name", t.pos))
+      }
+    raw.flatMap {
+      case ControlSequenceToken("input", _) =>
         for {
+          // read the filename which consists in all the consecutive non space character tokens following the input macro
+          () <- swallow
           name <- loop(new StringBuilder)
           () <- openInput(name)
-          t <- read()
+          t <- read
         } yield t
-      case Success(t) =>
-        Failure(new TeXMouthException("expected \\input command", t.pos))
       case t =>
-        t
+        throwError(new TeXMouthException("expected \\input command", t.pos))
     }
+  }
 
   private val decimals = Vector(1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1)
   private val romans = Vector(
@@ -487,7 +485,6 @@ trait TeXMacros {
   assert(decimals.size == romans.size)
 
   // the result is in reverse order, so that it can be pushed back directly on the token stack
-  @tailrec
   private def toRoman(i: Int, idx: Int, acc: List[Token]): List[Token] =
     if(i <= 0) {
       acc
@@ -497,20 +494,18 @@ trait TeXMacros {
       toRoman(i - decimals(idx), 0, romans(idx) ++ acc)
     }
 
-  def expandRomannumeral(): Try[Token] =
-    raw() match {
-      case Success(ControlSequenceToken("romannumeral", _)) =>
-        swallow()
+  def expandRomannumeral: Processor[Token] =
+    raw.flatMap {
+      case ControlSequenceToken("romannumeral", _) =>
         for {
-          n <- parseNumber()
+          () <- swallow
+          n <- number
           tokens = toRoman(n, 0, Nil)
-          () = pushback(tokens)
-          t <- read()
+          () <- pushback(tokens)
+          t <- read
         } yield t
-      case Success(t) =>
-        Failure(new TeXMouthException("expected \\romannumeral command", t.pos))
-      case f =>
-        f
+      case t =>
+        throwError(new TeXMouthException("expected \\romannumeral command", t.pos))
     }
 
   // the result is in reverse order, so that it can be pushed back directly on the token stack
@@ -535,51 +530,55 @@ trait TeXMacros {
       }
     }
 
-  def expandNumber(): Try[Token] =
-    raw() match {
-      case Success(ControlSequenceToken("number", _)) =>
-        swallow()
+  def expandNumber: Processor[Token] =
+    raw.flatMap {
+      case ControlSequenceToken("number", _) =>
         for {
-          n <- parseNumber()
+          () <- swallow
+          n <- number
           tokens = toTokens(n < 0, math.abs(n))
-          () = pushback(tokens)
-          t <- read()
+          () <- pushback(tokens)
+          t <- read
         } yield t
-      case Success(t) =>
-        Failure(new TeXMouthException("expected \\number command", t.pos))
-      case f =>
-        f
+      case t =>
+        throwError(new TeXMouthException("expected \\number command", t.pos))
     }
 
-  def expandString(): Try[Token] =
-    raw() match {
-      case Success(ControlSequenceToken("string", _)) =>
-        swallow()
-        raw() match {
-          case Success(ControlSequenceToken(n, true)) =>
-            assert(n.size == 1)
-            swallow()
-            val c = n(0)
-            pushback(CharacterToken(c, if(c == ' ') Category.SPACE else Category.OTHER_CHARACTER))
-            read()
-          case Success(ControlSequenceToken(n, false)) =>
-            swallow()
-            for(c <- n.reverse)
-              pushback(CharacterToken(c, if(c == ' ') Category.SPACE else Category.OTHER_CHARACTER))
-            pushback(CharacterToken(env.escapechar, Category.OTHER_CHARACTER))
-            read()
-          case Success(CharacterToken(c, _)) =>
-            pushback(CharacterToken(c, if(c == ' ') Category.SPACE else Category.OTHER_CHARACTER))
-            read()
-          case Success(t) =>
-            Failure(new TeXMouthException("expected token", t.pos))
-          case f =>
-            f
-        }
-      case Success(t) =>
-        Failure(new TeXMouthException("expected \\number command", t.pos))
-      case f =>
-        f
+  def expandString: Processor[Token] =
+    raw.flatMap {
+      case ControlSequenceToken("string", _) =>
+        for {
+          () <- swallow
+          t <- raw
+          t <- t match {
+            case ControlSequenceToken(n, true) =>
+              assert(n.size == 1)
+              for {
+                () <- swallow
+                c = n(0)
+                () <- pushback(CharacterToken(c, if(c == ' ') Category.SPACE else Category.OTHER_CHARACTER))
+                t <- read
+              } yield t
+            case ControlSequenceToken(n, false) =>
+              for {
+                () <- swallow
+                n1 = n.reverseMap(c => CharacterToken(c, if(c == ' ') Category.SPACE else Category.OTHER_CHARACTER)).toList
+                () <- pushback(n1)
+                () <- pushback(CharacterToken(env.escapechar, Category.OTHER_CHARACTER))
+                t <- read
+              } yield t
+            case CharacterToken(c, _) =>
+              for {
+                () <- swallow
+                () <- pushback(CharacterToken(c, if(c == ' ') Category.SPACE else Category.OTHER_CHARACTER))
+                t <- read
+              } yield t
+            case t =>
+              throwError(new TeXMouthException("expected token", t.pos))
+          }
+        } yield t
+      case t =>
+        throwError(new TeXMouthException("expected \\number command", t.pos))
     }
 
   private def meaning(t: Token) = t match {
@@ -628,68 +627,61 @@ trait TeXMacros {
       throw new TeXInternalException("this case should never occur.")
   }
 
-  def expandMeaning(): Try[Token] =
-    raw() match {
-      case Success(ControlSequenceToken("meaning", _)) =>
-        swallow()
+  def expandMeaning: Processor[Token] =
+    raw.flatMap {
+      case ControlSequenceToken("meaning", _) =>
         for {
-          token <- raw()
-          () = swallow()
-          () = pushback(meaning(token))
-          t <- read()
+          () <- swallow
+          token <- raw
+          () <- swallow
+          () <- pushback(meaning(token))
+          t <- read
         } yield t
-      case Success(t) =>
-        Failure(new TeXMouthException("expected \\meaning command", t.pos))
-      case f =>
-        f
+      case t =>
+        throwError(new TeXMouthException("expected \\meaning command", t.pos))
     }
 
-  def expandCsname(): Try[Token] =
-    raw() match {
-      case Success(start @ ControlSequenceToken("csname", _)) =>
-        swallow()
-        @tailrec
-        def loop(acc: List[Token]): Try[List[Token]] =
-          read() match {
-            case Success(ControlSequenceToken("endcsname", _)) =>
-              swallow()
-              Success(acc)
-            case Success(c @ CharacterToken(_, _)) =>
-              swallow()
-              loop(c :: acc)
-            case Success(t) =>
-              Failure(new TeXMouthException("character tokens only are expected inside \\csname..\\endcsname", t.pos))
-            case Failure(f) =>
-              Failure(f)
+  def expandCsname: Processor[Token] =
+    raw.flatMap {
+      case start @ ControlSequenceToken("csname", _) =>
+        def loop(acc: List[Token]): Processor[List[Token]] =
+          read.flatMap {
+            case ControlSequenceToken("endcsname", _) =>
+              for(() <- swallow)
+                yield acc
+            case c @ CharacterToken(_, _) =>
+              for {
+                () <- swallow
+                t <- loop(c :: acc)
+              } yield t
+            case t =>
+              throwError(new TeXMouthException("character tokens only are expected inside \\csname..\\endcsname", t.pos))
           }
         for {
+          () <- swallow
           name <- loop(Nil)
           t <- env.css(name.map(_.toString(env)).mkString) match {
             case Some(cs @ TeXMacro(_, _, _, _, _)) => expandCs(cs, start.pos)
-            case _ => read() // fi not found it does nothing, just go ahead
+            case _ => read // if not found it does nothing, just go ahead
           }
         } yield t
-      case Success(t) =>
-        Failure(new TeXMouthException("expected \\csname command", t.pos))
-      case f =>
-        f
+      case t =>
+        throwError(new TeXMouthException("expected \\csname command", t.pos))
     }
 
-  def expandafter(): Try[Token] =
-    raw() match {
-      case Success(start @ ControlSequenceToken("expandafter", _)) =>
-        swallow()
+  def expandafter: Processor[Token] =
+    raw.flatMap {
+      case start @ ControlSequenceToken("expandafter", _) =>
         for {
-          first <- raw()
-          () = swallow()
-          _ <- read()
-          () = pushback(first)
-          t <- read()
+          () <- swallow
+          first <- raw
+          () <- swallow
+          _ <- read
+          () <- pushback(first)
+          t <- read
         } yield t
-      case Success(t) =>
-        Failure(new TeXMouthException("expected \\expandafter command", t.pos))
-      case f =>
-        f
+      case t =>
+        throwError(new TeXMouthException("expected \\expandafter command", t.pos))
     }
 
 }

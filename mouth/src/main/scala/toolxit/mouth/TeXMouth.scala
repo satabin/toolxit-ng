@@ -16,23 +16,12 @@
 package toolxit
 package mouth
 
-import scala.util.{
-  Try,
-  Failure,
-  Success
-}
+import scala.util.Try
 
 import eyes._
 import util._
 
-import scala.annotation.tailrec
-
-import scala.collection.mutable.Stack
-
-import java.io.{
-  Reader,
-  FileReader
-}
+import scala.language.higherKinds
 
 /** The TeX mouth is a parser from tokens produced by the [[toolxit.eyes.TeXEyes]]
  *  and produces in turn commands that can be digested by the stomach.
@@ -52,49 +41,29 @@ import java.io.{
  *
  *  @author Lucas Satabin
  */
-class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
-    extends TeXMacros
-    with TeXParameters
-    with TeXInternals
+class TeXMouth(val env: TeXEnvironment)
+    extends Iteratees[Token]
+    with TeXMacros
     with TeXNumbers
     with TeXDimensions {
 
-  def env = _env
+  type Processor[T] = Iteratee[Token, T]
 
-  private def env_=(e: TeXEnvironment): Unit =
-    _env = e
+  def accept(token: Token): Processor[Unit] =
+    read.flatMap { t =>
+      if(t == token) {
+        for(() <- swallow)
+          yield ()
+      } else {
+        throwError(new TeXMouthException(f"Expected $token", t.pos))
+      }
+    }
 
-  // the current stack of tokens that are read or expanded
-  private val tokens: Stack[Token] =
-    Stack.empty[Token]
-
-  /** Pushes the given sequence back in reverse order into the input token stream */
-  protected[this] def pushback(rev: Seq[Token]): Unit =
-    tokens.pushAll(rev)
-  protected[this] def pushback(t: Token): Unit =
-    tokens.push(t)
-
-  /** the input stream to read */
-  private val eyes: Stack[TeXEyes] =
+  def openInput(name: String): Processor[Unit] =
     ???
 
-  /** Indicates whether the parser is expanding control sequences */
-  private var expanding: Boolean =
-    true
-
-  /** Indicates whether the input must be closed at the nex end of line.
-   *  This is the case when the `\endinput` command has been encountered. */
-  private var closeAtEOL: Boolean =
-    false
-
-  def openInput(name: String): Try[Unit] =
-    Try(eyes.push(???))
-
-  def closeInput(): Try[Unit] =
-    Try {
-      closeAtEOL = false
-      eyes.pop()
-    }
+  val closeInput: Processor[Unit] =
+    ???
 
   protected[this] object Primitive {
     def unapply(cs: ControlSequenceToken): Option[String] =
@@ -117,67 +86,43 @@ class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
   }
 
   /** Execute the given body with the expansion status, and restore the old status afterward */
-  final def withExpansion[T](value: Boolean)(body: => T): T = {
-    val old = expanding
-    try {
-      expanding = value
-      body
-    } finally {
-      expanding = old
+  def withExpansion[T](value: Boolean)(it: Processor[T]): Processor[T] = {
+    val old = env.expanding
+    env.expanding = value
+    it match {
+      case Done(_, _) | Error(_, _) =>
+        env.expanding = old
+        it
+      case Cont(k) =>
+        Cont { in =>
+          val res = k(in)
+          env.expanding = old
+          res
+        }
     }
   }
 
-  /** Accepts only the given token, and returns it */
-  def eat(token: Token): Try[Unit] =
-    raw() flatMap {
-      case t if t == token =>
-        swallow()
-        Success(())
-      case t =>
-        Failure(new TeXMouthException(f"expected $token, but found $t", t.pos))
-    }
-
-  /** Pops the first token out of the stack if any */
-  def swallow(): Unit =
-    if (tokens.nonEmpty)
-      tokens.pop
-
   /** Returns the next unexpanded token */
-  @tailrec
-  final def raw(): Try[Token] =
-    if (tokens.isEmpty) {
-      eyes.headOption match {
-        case Some(eyes) =>
-          /*
-          eyes.next(env) flatMap { token =>
-            // push the token we just read onto the token stack, it will be popped when actually consumed
-            tokens.push(token)
-            token match {
-              case CharacterToken(_, Category.END_OF_LINE) if closeAtEOL =>
-                for(() <- closeInput())
-                  yield token
-              case _ =>
-                Success(token)
-            }
-          }
-          */
-         ???
-        case None if eyes.size > 1 =>
-          // this stream is exhausted, but there is more!
-          closeInput()
-          raw()
-        case None =>
-          Failure(new TeXInternalException("No more input stream available"))
+  lazy val raw: Processor[Token] = Cont {
+    case Chunk(token :: rest) =>
+      token match {
+        case CharacterToken(_, Category.END_OF_LINE) if env.endinputEncountered =>
+          for(() <- closeInput)
+            yield token
+        case _ =>
+          Done(token, Chunk(rest))
       }
-    } else {
-      Success(tokens.head)
-    }
+    case Chunk(Nil) =>
+      raw
+    case Eoi =>
+      throwError(new TeXMouthException("End of input encountered", env.lastPosition))
+  }
 
   /** Returns the next token, expanded if necessary */
-  protected[this] def read(): Try[Token] =
-    raw().flatMap {
-      case token @ ControlSequenceToken(name, _) if expanding =>
-        // if it is a macro and we are in expanding mode, expand it
+  protected[this] val read: Processor[Token] =
+    raw.flatMap {
+      case token @ ControlSequenceToken(name, _) =>
+        // if it is a macro, expand it
         env.css(name) match {
           case Some(cs) =>
             // expand it if found
@@ -186,126 +131,115 @@ class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
             // check for primitive control sequence expansions
             name match {
               case If() =>
-                expandIf()
+                expandIf
               case "input" =>
-                expandInput()
+                expandInput
               case "endinput" =>
-                swallow()
-                closeAtEOL = true
-                read()
+                for {
+                  () <- swallow
+                  () = env.endinputEncountered = true
+                  t <- read
+                } yield t
               case "jobname" =>
-                swallow()
-                for(c <- env.jobname.reverse) {
-                  if(c == ' ')
-                    tokens.push(CharacterToken(c, Category.SPACE))
-                  else
-                    tokens.push(CharacterToken(c, Category.OTHER_CHARACTER))
-                }
-                read()
+                for {
+                  () <- swallow
+                  name = env.jobname.toList.reverseMap(c =>
+                      if(c == ' ')
+                        CharacterToken(c, Category.SPACE)
+                      else
+                        CharacterToken(c, Category.OTHER_CHARACTER))
+                  () <- pushback(name)
+                  t <- read
+                } yield t
               case "romannumeral" =>
-                expandRomannumeral()
+                expandRomannumeral
               case "number" =>
-                expandNumber()
+                expandNumber
               case "string" =>
-                expandString()
+                expandString
               case "meaning" =>
-                expandMeaning()
+                expandMeaning
               case "csname" =>
-                expandCsname()
+                expandCsname
               case "expandafter" =>
-                expandafter()
+                expandafter
               case "noexpand" =>
-                swallow()
-                raw().map { t =>
-                  swallow()
-                  t
-                }
+                for {
+                  () <- swallow
+                  t <- raw
+                  () <- swallow
+                } yield t
               case _ =>
                 // otherwise return it
-                swallow()
-                Success(token)
+                for(() <- swallow)
+                  yield token
             }
         }
-
       case t =>
         // otherwise just return it
-        Success(t)
+        done(t)
     }
 
   /** Parses and returns the next command. Tokens are expanded as needed, and we are ensured to get a typesetting command back */
-  @tailrec
-  final def parseCommand(): Try[Command] =
-    parseModifiers() match {
-      case Success((long, outer, global)) =>
-        read() match {
-          case Success(char @ CharacterToken(c, _)) =>
+  lazy val command: Processor[Command] =
+    modifiers().flatMap {
+      case (long, outer, global) =>
+        read.flatMap {
+          case char @ CharacterToken(c, _) =>
             if (long || outer || global) {
-              Failure(new TeXMouthException(f"You cannot use a prefix with `the letter $c'", char.pos))
+              throwError(new TeXMouthException(f"You cannot use a prefix with `the letter $c'", char.pos))
             } else {
               // This will probably be the case most of the time,
               // the command is simply to type set some character.
-              Success(CTypeset(c).atPos(char.pos))
+              done(CTypeset(c).atPos(char.pos))
             }
 
-          case Success(Primitive("def" | "gdef" | "edef" | "xdef")) =>
+          case Primitive("def" | "gdef" | "edef" | "xdef") =>
             // define a new macro, register it and parse next command
-            parseMacroDef(long, outer, global) match {
-              case Success((global, m)) =>
+            for {
+              (global, m) <- macroDef(long, outer, global)
+              () =
                 if (global)
                   // register the macro in global scope
                   env.css.global(m.name) = m
                 else
                   // register the macro in local scope
                   env.css(m.name) = m
-                parseCommand()
-              case Failure(t) =>
-                Failure(t)
-            }
+              c <- command
+            } yield c
 
-          case Success(cs @ ControlSequenceToken(name, _)) =>
-            Success(CControlSequence(name).atPos(cs.pos))
+          case cs @ ControlSequenceToken(name, _) =>
+            done(CControlSequence(name).atPos(cs.pos))
 
-          case Success(t) =>
-            Failure(new TeXMouthException(f"Unexpected token $t instead of a TeX command", t.pos))
+          case t =>
+            throwError(new TeXMouthException(f"Unexpected token $t instead of a TeX command", t.pos))
 
-          case Failure(t) =>
-            Failure(t)
         }
-      case Failure(t) =>
-        Failure(t)
     }
 
-  // This parsing method is not implemented with `flatMap` to allow
-  // for tail-recursion. I am not sure whether this is a useful optimization
-  // in this case but I can imagine scenarios in which the expansion process
-  // may introduce a lot of successive modifiers and where it could be helpful
-  // to spare stack.
-  // The main drawback in writing this method with a match instead of a `flatMap`
-  // is that we have to pattern-match `Failure` and build it back to type-check.
-  // Moreover, we also must extract the `Success` constructor.
-  // Well, that's still ok I guess, if this turns out to be armful, it will be easy
-  // to change this to use `flatMap`
-  @tailrec
-  final def parseModifiers(long: Boolean = false,
+  def modifiers(long: Boolean = false,
     outer: Boolean = false,
-    global: Boolean = false): Try[(Boolean, Boolean, Boolean)] = read() match {
-    case Success(ControlSequenceToken("long", _)) =>
-      swallow()
-      parseModifiers(true, outer, global)
+    global: Boolean = false): Processor[(Boolean, Boolean, Boolean)] = read.flatMap {
+    case ControlSequenceToken("long", _) =>
+      for {
+        () <- swallow
+        m <- modifiers(true, outer, global)
+      } yield m
 
-    case Success(ControlSequenceToken("outer", _)) =>
-      swallow()
-      parseModifiers(long, true, global)
+    case ControlSequenceToken("outer", _) =>
+      for {
+        () <- swallow
+        m <- modifiers(long, true, global)
+      } yield m
 
-    case Success(ControlSequenceToken("global", _)) =>
-      swallow()
-      parseModifiers(long, outer, true)
+    case ControlSequenceToken("global", _) =>
+      for {
+        () <- swallow
+        m <- modifiers(long, outer, true)
+      } yield m
 
-    case Success(_) =>
-      Success(long, outer, global)
-
-    case Failure(t) =>
-      Failure(t)
+    case _ =>
+      done((long, outer, global))
 
   }
 
@@ -321,81 +255,80 @@ class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
    *  this group.
    *  Typically, when parsing a group as a replacement text of a macro definition, they are not allowed.
    */
-  def parseGroup(reverted: Boolean, allowOuter: Boolean): Try[GroupToken] = {
-    @tailrec
-    def loop(level: Int, open: Token, acc: List[Token]): Try[GroupToken] = read() match {
-      case Success(tok @ CharacterToken(_, Category.BEGINNING_OF_GROUP)) =>
-        // start a new nested group, consume the opening token
-        swallow()
-        // and parses the rest adding the opening token to the accumulator
-        loop(level + 1, open, tok :: acc)
+  def group(reverted: Boolean, allowOuter: Boolean): Processor[GroupToken] = {
+    def loop(level: Int, open: Token, acc: List[Token]): Processor[GroupToken] = read.flatMap {
+      case tok @ CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
+        for {
+          // start a new nested group, consume the opening token
+          () <- swallow
+          // and parses the rest adding the opening token to the accumulator
+          g <- loop(level + 1, open, tok :: acc)
+        } yield g
 
-      case Success(tok @ CharacterToken(_, Category.END_OF_GROUP)) if level == 0 =>
-        // closing the top-level group, this is an exit condition, consume the token
-        swallow()
-        // and return the built group
-        if (reverted)
-          Success(GroupToken(open, acc, tok))
-        else
-          Success(GroupToken(open, acc.reverse, tok))
+      case tok @ CharacterToken(_, Category.END_OF_GROUP) if level == 0 =>
+        for {
+          // closing the top-level group, this is an exit condition, consume the token
+          () <- swallow
+          // and return the built group
+        } yield if (reverted) GroupToken(open, acc, tok) else GroupToken(open, acc.reverse, tok)
 
-      case Success(tok @ CharacterToken(_, Category.END_OF_GROUP)) =>
-        // closing a nested group, consume the character
-        swallow()
-        // and continue, adding it to the accumulator
-        loop(level - 1, open, tok :: acc)
+      case tok @ CharacterToken(_, Category.END_OF_GROUP) =>
+        for {
+          // closing a nested group, consume the character
+          () <- swallow
+          // and continue, adding it to the accumulator
+          g <- loop(level - 1, open, tok :: acc)
+        } yield g
 
-      case Success(tok @ ControlSequenceToken(name, _)) if !allowOuter && env.css.isOuter(name) =>
+      case tok @ ControlSequenceToken(name, _) if !allowOuter && env.css.isOuter(name) =>
         // macro declared as `outer' are not allowed in the parameter text
-        Failure(new TeXMouthException(f"Macro $name declared as `\\outer` is not allowed in parameter text", tok.pos))
+        throwError(new TeXMouthException(f"Macro $name declared as `\\outer` is not allowed in parameter text", tok.pos))
 
-      case Success(tok) =>
-        // any other character is consumed
-        swallow()
-        // and added to the accumulator
-        loop(level, open, tok :: acc)
-
-      case Failure(t) =>
-        Failure(t)
+      case tok =>
+        for {
+          // any other character is consumed
+          () <- swallow
+          // and added to the accumulator
+          g <- loop(level, open, tok :: acc)
+        } yield g
 
     }
-    read() flatMap {
+    read.flatMap {
       case tok @ CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
-        // ok, so we start a new group
-        // consume the opening token
-        swallow()
-        // and loop until this group is correctly closed
-        loop(0, tok, Nil)
+        for {
+          // ok, so we start a new group
+          // consume the opening token
+          () <- swallow
+          // and loop until this group is correctly closed
+          g <- loop(0, tok, Nil)
+        } yield g
       case tok =>
         // this is not an opening group, meaning, this is an error
-        Failure(new TeXMouthException(f"Beginning of group character expected but $tok found", tok.pos))
+        throwError(new TeXMouthException(f"Beginning of group character expected but $tok found", tok.pos))
     }
 
   }
 
   /** Reads an space character (with category code SPACE). */
-  final def parseOptSpace(): Try[Option[CharacterToken]] =
-    read() match {
-      case Success(c @ CharacterToken(_, Category.SPACE)) =>
-        swallow()
-        Success(Some(c))
-      case Success(_) =>
-        Success(None)
-      case Failure(t) =>
-        Failure(t)
+  val optSpace: Processor[Option[CharacterToken]] =
+    read.flatMap {
+      case c @ CharacterToken(_, Category.SPACE) =>
+        for(() <- swallow)
+          yield Some(c)
+      case _ =>
+        done(None)
     }
 
   /** Reads zero or more space characters (with category code SPACE). */
-  @tailrec
-  final def parseSpaces(): Try[Unit] =
-    read() match {
-      case Success(CharacterToken(_, Category.SPACE)) =>
-        swallow()
-        parseSpaces()
-      case Success(_) =>
-        Success(())
-      case Failure(t) =>
-        Failure(t)
+  lazy val spaces: Processor[Unit] =
+    read.flatMap {
+      case CharacterToken(_, Category.SPACE) =>
+        for {
+          () <- swallow
+          () <- spaces
+        } yield ()
+      case _ =>
+        done(())
     }
 
   /** Reads a keyword of the form:
@@ -403,27 +336,25 @@ class TeXMouth(private var _env: TeXEnvironment, reader: Reader)
    *  <keyword(name)> ::= <space>* <name>
    *  }}}
    */
-  final def keyword(name: String): Try[List[CharacterToken]] =
-    parseSpaces() match {
-      case Success(()) =>
-        @tailrec
-        def loop(name: String, acc: List[CharacterToken]): Try[List[CharacterToken]] =
-          if (name.isEmpty) {
-            Success(acc.reverse)
-          } else {
-            read() match {
-              case Success(char @ CharacterToken(c, _)) if c.toLower == name.charAt(0).toLower =>
-                swallow()
-                loop(name.substring(1), char :: acc)
-              case Success(t) =>
-                Failure(new TeXMouthException(f"Expected ${name.charAt(0)} but $t found", t.pos))
-              case Failure(t) =>
-                Failure(t)
-            }
-          }
-        loop(name, Nil)
-      case Failure(t) =>
-        Failure(t)
-    }
+  final def keyword(name: String): Processor[List[CharacterToken]] = {
+    def loop(idx: Int, acc: List[CharacterToken]): Processor[List[CharacterToken]] =
+      if (idx >= name.size) {
+        done(acc.reverse)
+      } else {
+        read.flatMap {
+          case char @ CharacterToken(c, _) if c.toLower == name.charAt(idx).toLower =>
+            for {
+              () <- swallow
+              l <- loop(idx + 1, char :: acc)
+            } yield l
+          case t =>
+            throwError(new TeXMouthException(f"Expected ${name.charAt(idx)} but $t found", t.pos))
+        }
+      }
+    for {
+      () <- spaces
+      l <- loop(0, Nil)
+    } yield l
+  }
 
 }

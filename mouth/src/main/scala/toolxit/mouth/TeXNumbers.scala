@@ -16,107 +16,83 @@
 package toolxit
 package mouth
 
-import scala.util.{
-  Try,
-  Failure,
-  Success
-}
+import util._
 
-import scala.annotation.tailrec
+import scala.util.Try
 
 trait TeXNumbers {
   this: TeXMouth =>
 
-  def parseNumber(): Try[Int] =
-    parseSigns()
-
-  def parsePlusOrMinus(): Try[Int] =
-    read() flatMap {
-      case CharacterToken('+', Category.OTHER_CHARACTER) =>
-        swallow()
-        Success(1)
-      case CharacterToken('-', Category.OTHER_CHARACTER) =>
-        swallow()
-        Success(-1)
-      case tok =>
-        Failure(new TeXMouthException(s"Plus or minus expected but $tok found", tok.pos))
-    }
+  def number: Processor[Int] =
+    signs()
 
   /** Parses zero or more signs and returns the resulting sign:
    *   - `1` means `+`
    *   - `-1` meas '-'
    */
-  @tailrec
-  final def parseSigns(current: Int = 1): Try[Int] =
-    parseSpaces() match {
-      case Success(()) =>
-        parsePlusOrMinus() match {
-          case Success(sign) =>
-            parseSigns(current * sign)
-          case Failure(_) =>
-            parseSpaces().map(_ => current)
-        }
-      case Failure(t) =>
-        Failure(t)
+  final def signs(current: Int = 1): Processor[Int] =
+    for {
+      _ <- spaces
+      s <- read
+      s <- s match {
+        case CharacterToken('+', Category.OTHER_CHARACTER) =>
+          for(() <- swallow)
+            yield current
+        case CharacterToken('-', Category.OTHER_CHARACTER) =>
+          for(() <- swallow)
+            yield - current
+        case _ =>
+          done(current)
+      }
+    } yield s
+
+  val integerConstant: Processor[Int] =
+    for {
+      digits <- takeWhile {
+        case CharacterToken(c, Category.OTHER_CHARACTER) =>
+          c.isDigit
+        case _ =>
+          false
+      }
+    } yield digits.foldLeft(0) {
+      case (acc, CharacterToken(c, _)) =>
+        acc * 10 + c - 48
+      case _ =>
+        ???
     }
 
-  @tailrec
-  final def parseIntegerConstant(acc: Option[Int] = None): Try[Int] =
-    parseDigit() match {
-      case Success(i) =>
-        parseIntegerConstant(Some(acc.getOrElse(0) * 10 + i))
-      case Failure(_) if acc.isDefined =>
-        Success(acc.get)
-      case Failure(t) =>
-        Failure(t)
+  val octalConstant: Processor[Int] =
+    for {
+      digits <- takeWhile {
+        case CharacterToken(c, Category.OTHER_CHARACTER) =>
+          c - 48 >= 0 && c - 48 < 8
+        case _ =>
+          false
+      }
+    } yield digits.foldLeft(0) {
+      case (acc, CharacterToken(c, _)) =>
+        acc * 8 + c - 48
+      case _ =>
+        ???
     }
 
-  @tailrec
-  final def parseOctalConstant(acc: Option[Int] = None): Try[Int] =
-    parseOctalDigit() match {
-      case Success(i) =>
-        parseOctalConstant(Some(acc.getOrElse(0) * 8 + i))
-      case Failure(_) if acc.isDefined =>
-        Success(acc.get)
-      case Failure(t) =>
-        Failure(t)
-    }
-
-  @tailrec
-  final def parseHexConstant(acc: Option[Int] = None): Try[Int] =
-    parseHexDigit() match {
-      case Success(i) =>
-        parseHexConstant(Some(acc.getOrElse(0) * 16 + i))
-      case Failure(_) if acc.isDefined =>
-        Success(acc.get)
-      case Failure(t) =>
-        Failure(t)
-    }
-
-  def parseDigit(): Try[Int] =
-    read() flatMap {
-      case CharacterToken(c, Category.OTHER_CHARACTER) if c.isDigit =>
-        Success(c - 48)
-      case tok =>
-        Failure(new TeXMouthException(s"Digit expected but $tok found", tok.pos))
-    }
-
-  def parseOctalDigit(): Try[Int] =
-    read() flatMap {
-      case CharacterToken(c, Category.OTHER_CHARACTER) if c - 48 >= 0 && c - 48 < 8 =>
-        Success(c - 48)
-      case tok =>
-        Failure(new TeXMouthException(s"Octal digit expected but $tok found", tok.pos))
-    }
-
-  def parseHexDigit(): Try[Int] =
-    read() flatMap {
-      case CharacterToken(c, Category.OTHER_CHARACTER) if c.isDigit =>
-        Success(c - 48)
-      case CharacterToken(c, Category.OTHER_CHARACTER | Category.LETTER) if c - 65 >= 0 && c - 65 < 6 =>
-        Success(c - 65)
-      case tok =>
-        Failure(new TeXMouthException(s"Octal digit expected but $tok found", tok.pos))
+  val hexConstant: Processor[Int] =
+    for {
+      digits <- takeWhile {
+        case CharacterToken(c, Category.OTHER_CHARACTER) if c.isDigit =>
+          true
+        case CharacterToken(c, Category.OTHER_CHARACTER | Category.LETTER) =>
+          c - 65 >= 0 && c - 65 < 6
+        case _ =>
+          false
+      }
+    } yield digits.foldLeft(0) {
+      case (acc, CharacterToken(c, Category.OTHER_CHARACTER)) if c.isDigit =>
+        acc * 16 + c - 48
+      case (acc, CharacterToken(c, Category.OTHER_CHARACTER | Category.LETTER)) =>
+        acc * 16 + c - 65
+      case _ =>
+        ???
     }
 
 }

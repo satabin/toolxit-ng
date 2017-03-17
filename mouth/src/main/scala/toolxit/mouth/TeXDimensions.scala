@@ -18,18 +18,10 @@ package mouth
 
 import dimen.Dimension
 
-import scala.util.{
-  Try,
-  Failure,
-  Success
-}
-
-import scala.annotation.tailrec
-
 trait TeXDimensions {
   this: TeXMouth =>
 
-  def parseDimen(): Try[Dimension] =
+  val dimen: Processor[Dimension] =
     ???
 
 }

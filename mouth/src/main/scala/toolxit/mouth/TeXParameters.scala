@@ -16,63 +16,47 @@
 package toolxit
 package mouth
 
-import scala.util.{
-  Try,
-  Failure,
-  Success
-}
-
 trait TeXParameters {
   this: TeXMouth =>
 
-  def parseIntegerParameter(): Try[ControlSequenceToken] =
-    read() match {
-      case Success(cs @ ControlSequenceToken(name, false)) if Primitives.integerParameter.contains(name) =>
-        Success(cs)
-      case Success(tok) =>
-        Failure(new TeXMouthException(s"Integer parameter expected but $tok found", tok.pos))
-      case Failure(t) =>
-        Failure(t)
+  def integerParameter: Processor[ControlSequenceToken] =
+    read.flatMap {
+      case cs @ ControlSequenceToken(name, false) if Primitives.integerParameter.contains(name) =>
+        done(cs)
+      case tok =>
+        throwError(new TeXMouthException(s"Integer parameter expected but $tok found", tok.pos))
     }
 
-  def parseDimenParameter(): Try[ControlSequenceToken] =
-    read() match {
-      case Success(cs @ ControlSequenceToken(name, false)) if Primitives.dimenParameter.contains(name) =>
-        Success(cs)
-      case Success(tok) =>
-        Failure(new TeXMouthException(s"Dimension parameter expected but $tok found", tok.pos))
-      case Failure(t) =>
-        Failure(t)
+  def dimenParameter: Processor[ControlSequenceToken] =
+    read.flatMap {
+      case cs @ ControlSequenceToken(name, false) if Primitives.dimenParameter.contains(name) =>
+        done(cs)
+      case tok =>
+        throwError(new TeXMouthException(s"Dimension parameter expected but $tok found", tok.pos))
     }
 
-  def parseGlueParameter(): Try[ControlSequenceToken] =
-    read() match {
-      case Success(cs @ ControlSequenceToken(name, false)) if Primitives.glueParameter.contains(name) =>
-        Success(cs)
-      case Success(tok) =>
-        Failure(new TeXMouthException(s"Glue parameter expected but $tok found", tok.pos))
-      case Failure(t) =>
-        Failure(t)
+  def glueParameter: Processor[ControlSequenceToken] =
+    read.flatMap {
+      case cs @ ControlSequenceToken(name, false) if Primitives.glueParameter.contains(name) =>
+        done(cs)
+      case tok =>
+        throwError(new TeXMouthException(s"Glue parameter expected but $tok found", tok.pos))
     }
 
-  def parseMuglueParameter(): Try[ControlSequenceToken] =
-    read() match {
-      case Success(cs @ ControlSequenceToken(name, false)) if Primitives.muglueParameter.contains(name) =>
-        Success(cs)
-      case Success(tok) =>
-        Failure(new TeXMouthException(s"Muglue parameter expected but $tok found", tok.pos))
-      case Failure(t) =>
-        Failure(t)
+  def muglueParameter: Processor[ControlSequenceToken] =
+    read.flatMap {
+      case cs @ ControlSequenceToken(name, false) if Primitives.muglueParameter.contains(name) =>
+        done(cs)
+      case tok =>
+        throwError(new TeXMouthException(s"Muglue parameter expected but $tok found", tok.pos))
     }
 
-  def parseTokenParameter(): Try[ControlSequenceToken] =
-    read() match {
-      case Success(cs @ ControlSequenceToken(name, false)) if Primitives.tokenParameter.contains(name) =>
-        Success(cs)
-      case Success(tok) =>
-        Failure(new TeXMouthException(s"Token parameter expected but $tok found", tok.pos))
-      case Failure(t) =>
-        Failure(t)
+  def tokenParameter: Processor[ControlSequenceToken] =
+    read.flatMap {
+      case cs @ ControlSequenceToken(name, false) if Primitives.tokenParameter.contains(name) =>
+        done(cs)
+      case tok =>
+        throwError(new TeXMouthException(s"Token parameter expected but $tok found", tok.pos))
     }
 
 }

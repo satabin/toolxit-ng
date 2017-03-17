@@ -17,16 +17,7 @@ package toolxit
 
 import scala.language.higherKinds
 
-import scala.util.{
-  Try,
-  Success,
-  Failure
-}
-
-import scala.concurrent.{
-  Future,
-  ExecutionContext
-}
+import scala.util.Try
 
 package object util {
 
