@@ -67,7 +67,7 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
         (ch, _, _), _*) if sup1 == sup2 =>
         for (() <- swallow(3))
           yield (if (ch < 64) (ch + 64).toChar else (ch - 64).toChar, l, c)
-      case List((ch, l, c), _*) =>
+      case ps @ List((ch, l, c), _*) =>
         for (() <- swallow)
           yield (ch, l, c)
       case Nil =>
@@ -88,13 +88,12 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
           // when a comment started it lasts until the end of line is reached
           // the end of line character is then eaten as well
           for {
-            () <- dropWhile {
+            next <- dropWhile {
               case (END_OF_LINE(_), _, _) => false
               case _                      => true
             }
             // eat the end of line character
-            () <- swallow
-            Some((_, l, c)) <- peek
+            () <- next.fold(noop)(_ => swallow)
             t <- tokenize
           } yield t
         case ACTIVE_CHARACTER(ch) =>

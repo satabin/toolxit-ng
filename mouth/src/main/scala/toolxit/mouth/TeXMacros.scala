@@ -134,7 +134,6 @@ trait TeXMacros {
           (global, expanded, name, params, appendBrace) <- macroDecl(global)
           // and the replacement text expanded only if needed
           replacement <- withExpansion(expanded)(replacement(appendBrace))
-          () = println(f"defined macro $name -> $params -> $replacement")
         } yield (global, TeXMacro(name, params, replacement, long, outer))
 
       case t =>
@@ -558,35 +557,36 @@ trait TeXMacros {
   def expandString: Processor[Token] =
     raw.flatMap {
       case ControlSequenceToken("string", _) =>
+        def expand(t: Token): Processor[Token] = t match {
+          case ControlSequenceToken(n, true) =>
+            assert(n.size == 1)
+            for {
+              () <- swallow
+              c = n(0)
+              () <- pushback(CharacterToken(c, if (c == ' ') Category.SPACE else Category.OTHER_CHARACTER))
+              t <- read
+            } yield t
+          case ControlSequenceToken(n, false) =>
+            for {
+              () <- swallow
+              n1 = n.reverseMap(c => CharacterToken(c, if (c == ' ') Category.SPACE else Category.OTHER_CHARACTER)).toList
+              () <- pushback(n1)
+              () <- pushback(CharacterToken(env.escapechar, Category.OTHER_CHARACTER))
+              t <- read
+            } yield t
+          case CharacterToken(c, _) =>
+            for {
+              () <- swallow
+              () <- pushback(CharacterToken(c, if (c == ' ') Category.SPACE else Category.OTHER_CHARACTER))
+              t <- read
+            } yield t
+          case t =>
+            throwError(new TeXMouthException("expected token", t.pos))
+        }
         for {
           () <- swallow
           t <- raw
-          t <- t match {
-            case ControlSequenceToken(n, true) =>
-              assert(n.size == 1)
-              for {
-                () <- swallow
-                c = n(0)
-                () <- pushback(CharacterToken(c, if (c == ' ') Category.SPACE else Category.OTHER_CHARACTER))
-                t <- read
-              } yield t
-            case ControlSequenceToken(n, false) =>
-              for {
-                () <- swallow
-                n1 = n.reverseMap(c => CharacterToken(c, if (c == ' ') Category.SPACE else Category.OTHER_CHARACTER)).toList
-                () <- pushback(n1)
-                () <- pushback(CharacterToken(env.escapechar, Category.OTHER_CHARACTER))
-                t <- read
-              } yield t
-            case CharacterToken(c, _) =>
-              for {
-                () <- swallow
-                () <- pushback(CharacterToken(c, if (c == ' ') Category.SPACE else Category.OTHER_CHARACTER))
-                t <- read
-              } yield t
-            case t =>
-              throwError(new TeXMouthException("expected token", t.pos))
-          }
+          t <- expand(t)
         } yield t
       case t =>
         throwError(new TeXMouthException("expected \\number command", t.pos))

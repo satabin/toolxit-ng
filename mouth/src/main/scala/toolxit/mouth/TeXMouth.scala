@@ -69,16 +69,6 @@ class TeXMouth(val env: TeXEnvironment)
         throwError(e)
     }
 
-  val closeInput: Processor[Unit] =
-    try {
-      val top = env.inputs.pop()
-      top.close()
-      noop
-    } catch {
-      case e: Exception =>
-        throwError(e)
-    }
-
   protected[this] object Primitive {
     def unapply(cs: ControlSequenceToken): Option[String] =
       env.css(cs.name) match {
@@ -103,33 +93,7 @@ class TeXMouth(val env: TeXEnvironment)
   def withExpansion[T](value: Boolean)(it: Processor[T]): Processor[T] = {
     val old = env.expanding
     env.expanding = value
-    it match {
-      case Done(_, _) | Error(_, _) =>
-        env.expanding = old
-        it
-      case Cont(k) =>
-        Cont { in =>
-          val res = k(in)
-          env.expanding = old
-          res
-        }
-    }
-  }
-
-  override val swallow: Processor[Unit] = Cont {
-    case Chunk(token :: rest) =>
-      token match {
-        case CharacterToken(_, Category.END_OF_LINE) if env.endinputEncountered =>
-          for {
-            () <- closeInput
-          } yield Done((), Chunk(rest))
-        case _ =>
-          Done((), Chunk(rest))
-      }
-    case Chunk(Nil) =>
-      swallow
-    case Eoi =>
-      done((), Eoi)
+    it.map { v => env.expanding = old; v }.recoverWith { e => env.expanding = old; throwError(e) }
   }
 
   /** Returns the next unexpanded token */
@@ -320,21 +284,22 @@ class TeXMouth(val env: TeXEnvironment)
 
       case param @ CharacterToken(_, Category.PARAMETER) if withParams =>
         // parsing a group with parameters inside
+        def parameter(tok: Token): Processor[Token] = tok match {
+          case tok @ CharacterToken(_, Category.PARAMETER) =>
+            // this is an escaped parameter token
+            for (() <- swallow)
+              yield tok
+          case CharacterToken(int(i), _) =>
+            // this is a parameter token
+            for (() <- swallow)
+              yield ParameterToken(i).atPos(param.pos)
+          case tok =>
+            throwError(new TeXMouthException(f"Expecting an integer or a parameter token but got $tok", tok.pos))
+        }
         for {
           () <- swallow
           tok <- read
-          tok <- tok match {
-            case tok @ CharacterToken(_, Category.PARAMETER) =>
-              // this is an escaped parameter token
-              for (() <- swallow)
-                yield tok
-            case CharacterToken(int(i), _) =>
-              // this is a parameter token
-              for (() <- swallow)
-                yield ParameterToken(i).atPos(param.pos)
-            case tok =>
-              throwError(new TeXMouthException(f"Expecting an integer or a parameter token but got $tok", tok.pos))
-          }
+          tok <- parameter(tok)
           g <- loop(level, open, tok :: acc)
         } yield g
       case tok =>

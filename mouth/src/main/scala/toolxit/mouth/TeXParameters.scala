@@ -16,6 +16,8 @@
 package toolxit
 package mouth
 
+import util._
+
 trait TeXParameters {
   this: TeXMouth =>
 

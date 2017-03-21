@@ -1,42 +1,46 @@
-/*
-* Copyright (c) 2015 Lucas Satabin
-*
-* Licensed under the Apache License Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*/
 package toolxit
 
-import scala.language.higherKinds
+import scala.annotation.tailrec
 
 import scala.util.{
   Try,
-  Success,
   Failure
 }
 
+/** Scala port of the iterator library presented here: http://okmij.org/ftp/Haskell/Iteratee/IterateeM.hs. */
 package object util {
 
-  type Enumerator[In, Out] = Iteratee[In, Out] => Iteratee[In, Out]
+  type Enumerator[Elt, A] = Iteratee[Elt, A] => Try[Iteratee[Elt, A]]
 
-  type Enumeratee[EltOuter, EltInner, Out] = Iteratee[EltInner, Out] => Iteratee[EltOuter, Iteratee[EltInner, Out]]
+  type Enumeratee[EltO, EltI, A] = Iteratee[EltI, A] => Iteratee[EltO, Iteratee[EltI, A]]
 
-  def run[In, Out](it: Iteratee[In, Out])(enum: Enumerator[In, Out]): Try[Out] = {
-    def check(it: Iteratee[In, Out]): Try[Out] =
-      it match {
-        case Done(v, _)  => Success(v)
-        case Error(e, _) => Failure(e)
-        case Cont(k)     => check(k(Eoi))
-      }
-    check(enum(it))
+  type K[Elt, +A] = Stream[Elt] => Try[(Iteratee[Elt, A], Stream[Elt])]
+
+  @inline
+  val exnEos: Exception =
+    new Exception("End of stream")
+
+  @inline
+  val exnDivergent: Exception =
+    new Exception("Divergent iteratee")
+
+  @inline
+  def throwError[Elt](exn: Exception): Iteratee[Elt, Nothing] =
+    Cont(Some(exn), s => Try((throwError(exn), s)))
+
+  @inline
+  def throwRecoverableError[Elt, A](exn: Exception, k: K[Elt, A]): Iteratee[Elt, A] =
+    Cont(Some(exn), k)
+
+  /** Runs the iteratee and returns the result wrapped in the monad. */
+  def run[Elt, A](retries: Int, it: Iteratee[Elt, A]): Try[A] = it match {
+    case Done(v) => Try(v)
+    case Cont(None, k) => k(Eos(None)).flatMap {
+      case (Done(v), s)                          => Try(v)
+      case (cont @ Cont(e, _), s) if retries > 0 => run(retries - 1, cont)
+      case (cont @ Cont(e, _), s)                => Failure(e.getOrElse(exnDivergent))
+    }
+    case Cont(Some(e), _) => Failure(e)
   }
 
 }

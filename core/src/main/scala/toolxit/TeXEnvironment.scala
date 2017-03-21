@@ -574,9 +574,10 @@ class TeXEnvironment(_jobname: String) {
   category('%') = Category.COMMENT_CHARACTER
   category('\\') = Category.ESCAPE_CHARACTER
   category('#') = Category.PARAMETER
-  // TODO remove later
+  // TODO remove later this is not the case by default but is defined in the format
   category('{') = Category.BEGINNING_OF_GROUP
   category('}') = Category.END_OF_GROUP
+  category('^') = Category.SUPERSCRIPT
 
 }
 

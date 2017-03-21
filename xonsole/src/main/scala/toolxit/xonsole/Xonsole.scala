@@ -31,7 +31,14 @@ import java.io.{
   FileOutputStream
 }
 
-import scala.util.Properties
+import scala.util.{
+  Properties,
+  Try,
+  Success,
+  Failure
+}
+
+import scala.annotation.tailrec
 
 class Xonsole {
 
@@ -56,19 +63,14 @@ class Xonsole {
 
     val stomach = new TeXStomach(environment, terminal.writer, out)
 
-    val enumerator = Enumerator.fromEnv[List[Token]](environment, false)
-
-    //val init =
-    //  Enumeratees.join(
-    //    Enumeratees.join(Enumeratees.sequence(eyes.tokenize)(Enumeratees.sequence(mouth.command)(stomach.process))))
-    val its = new Iteratees[(Char, Int, Int)] {}
-    val init = its.fold[Token, List[Token]](eyes.tokenize)(Nil)(_ :+ _)
+    val it =
+      Enumeratees.join(
+        Enumeratees.sequenceStream(eyes.tokenize)(Enumeratees.join(Enumeratees.sequenceStream(mouth.command)(stomach.process))))
 
     terminal.writer.println("This is Xonsole, Version 0.0.1")
 
-    var it = init
-
     try {
+      var fst = true
       while (true) {
         try {
 
@@ -78,27 +80,25 @@ class Xonsole {
             terminal.writer.println("(Please type a command or say `\\end')")
           } else {
 
-            val r = new util.LineReader(new StringReader(line + "\n\n"))
+            val enumerator = Enumerator.seq[(Char, Int, Int), Unit]((line + "\n").zipWithIndex.map { case (c, idx) => (c, 1, idx + 1) })
 
-            environment.inputs.push(r)
+            // we give a credit of 3 retries because of the peeking of 4 characters
+            // to expand escaped characters
+            val i = enumerator(it).flatMap(run(3, _))
 
-            it = enumerator(it)
-
-            it match {
-              case Done(ts, _) =>
-                println(ts)
-                it = init
-              case Error(EndException, _) =>
+            i match {
+              case Success(()) =>
+              // next line
+              case Failure(EndException) =>
                 throw new EndOfFileException
-              case Error(TeXMouthException(msg, pos), _) =>
+              case Failure(EOIException(_, _)) =>
+              // next line
+              case Failure(TeXMouthException(msg, pos)) =>
                 terminal.writer.println(f"$pos $msg")
-                it = init
-              case Error(t, _) =>
+              case Failure(t) =>
                 t.printStackTrace
-                it = init
-              case i @ Cont(_) =>
-                it = i
             }
+
           }
 
         } catch {

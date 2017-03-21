@@ -24,7 +24,10 @@ trait TeXNumbers {
   this: TeXMouth =>
 
   def number: Processor[Int] =
-    signs()
+    for {
+      sign <- signs()
+      i <- integerConstant
+    } yield sign * i
 
   /** Parses zero or more signs and returns the resulting sign:
    *   - `1` means `+`

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2015 Lucas Satabin
+* Copyright (c) 2017 Lucas Satabin
 *
 * Licensed under the Apache License Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,63 +16,87 @@
 package toolxit
 package util
 
-import scala.language.higherKinds
-
 import scala.annotation.tailrec
 
+import scala.util.{
+  Try,
+  Success,
+  Failure
+}
+
+import java.io.{
+  Closeable,
+  File,
+  FileReader,
+  BufferedReader
+}
+
+/** Set of standard enumerators. */
 object Enumerator {
 
-  private class TeXEnvironmentEnumerator[Res](env: TeXEnvironment, sendEoi: Boolean) extends Iteratees[(Char, Int, Int)] with Enumerator[(Char, Int, Int), Res] {
+  @inline
+  private def feedI[Elt, A](k: K[Elt, A], s: Stream[Elt]): Try[Iteratee[Elt, A]] =
+    k(s).flatMap { case (it, _) => Try(it) }
 
-    private def nextChar(k: Input[(Char, Int, Int)] => Iteratee[(Char, Int, Int), Res]): (Iteratee[(Char, Int, Int), Res], Boolean) =
-      try {
-        env.inputs.headOption match {
-          case Some(input) =>
-            if (env.endOfLineEncountered) {
-              // don't care about the rest of the line, just go ahead
-              input.nextLine()
-              // and of course reset this state
-              env.endOfLineEncountered = false
-            }
-            input.nextChar() match {
-              case Some(c) =>
-                if (env.endinputEncountered && c._1 == '\n') {
-                  // we must close the input
-                  input.close()
-                  env.inputs.pop
-                }
-                k(Chunk(List(c))) -> true
-              case None =>
-                // the input is exhausted go back to the old one
-                // after having closed the current one
-                input.close()
-                env.inputs.pop
-                // and re-read
-                nextChar(k)
-            }
-          case None =>
-            k(Eoi) -> false
-        }
-      } catch {
-        case e: Exception =>
-          throwError(new TeXException("Something wrong happened", e)) -> false
-      }
-
-    @tailrec
-    final def apply(step: Iteratee[(Char, Int, Int), Res]): Iteratee[(Char, Int, Int), Res] = step match {
-      case Cont(k) =>
-        val (it, cont) = nextChar(k)
-        if (cont)
-          apply(it)
-        else
-          it
-      case _ =>
-        step
+  /** Feeds an end-of-stream to the iteratee. */
+  def eos[Elt, A]: Enumerator[Elt, A] = {
+    case Cont(None, k) => feedI(k, Eos(None)).flatMap {
+      case i @ Done(_)      => Try(i)
+      case Cont(None, _)    => Try(throwError(exnDivergent))
+      case Cont(Some(e), _) => Try(throwError(e))
     }
-
+    case i => Try(i)
   }
 
-  def fromEnv[Res](env: TeXEnvironment, sendEoi: Boolean = true): Enumerator[(Char, Int, Int), Res] =
-    new TeXEnvironmentEnumerator(env, sendEoi)
+  /** Feeds an error to the iteratee. */
+  def err[Elt, A](e: Exception): Enumerator[Elt, A] = {
+    case Cont(None, k) => feedI(k, Eos(Some(e))).flatMap {
+      case i @ Done(_)      => Try(i)
+      case Cont(None, _)    => Try(throwError(exnDivergent))
+      case Cont(Some(e), _) => Try(throwError(e))
+    }
+    case i => Try(i)
+  }
+
+  /** Feeds a string to the iteratee. */
+  def string[A](in: String): Enumerator[Char, A] = {
+    case Cont(None, k) => feedI(k, Chunk(in.toVector))
+    case i             => Try(i)
+  }
+
+  /** Feeds a sequence to the iteratee. */
+  def seq[T, A](s: Seq[T]): Enumerator[T, A] = {
+    case Cont(None, k) => feedI(k, Chunk(s))
+    case i             => Try(i)
+  }
+
+  /** Feeds the iteratee with the string content of a file, character by character. */
+  def textFile[A](file: File, chunkSize: Int = 1024): Enumerator[Char, A] = {
+    case Cont(None, k) =>
+      def loop(reader: BufferedReader, k: K[Char, A], p: Array[Char]): Try[Iteratee[Char, A]] =
+        Try(reader.read(p, 0, chunkSize)) match {
+          case Success(-1)           => feedI(k, Eos(None))
+          case Success(n)            => feedI(k, Chunk(p.take(n))).flatMap(check(reader, p))
+          case Failure(e: Exception) => feedI(k, Eos(Some(e)))
+          case Failure(t)            => throw t
+        }
+      def check(reader: BufferedReader, p: Array[Char])(it: Iteratee[Char, A]) = it match {
+        case Cont(None, k) => loop(reader, k, p)
+        case i             => Try(i)
+      }
+      Try(new BufferedReader(new FileReader(file), chunkSize)) match {
+        case Success(reader) =>
+          for {
+            r <- loop(reader, k, Array.ofDim[Char](chunkSize))
+            _ <- Try(Try(reader.close).getOrElse(Unit))
+          } yield r
+        case Failure(t: Exception) =>
+          feedI(k, Eos(Some(t)))
+        case Failure(t) =>
+          // it is porbably a JVM error
+          throw t
+      }
+    case i => Try(i)
+  }
 
 }
