@@ -17,7 +17,11 @@ package toolxit
 
 import scala.language.higherKinds
 
-import scala.util.Try
+import scala.util.{
+  Try,
+  Success,
+  Failure
+}
 
 package object util {
 

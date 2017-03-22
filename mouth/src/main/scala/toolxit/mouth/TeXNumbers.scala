@@ -36,11 +36,11 @@ trait TeXNumbers {
       s <- read
       s <- s match {
         case CharacterToken('+', Category.OTHER_CHARACTER) =>
-          for(() <- swallow)
+          for (() <- swallow)
             yield current
         case CharacterToken('-', Category.OTHER_CHARACTER) =>
-          for(() <- swallow)
-            yield - current
+          for (() <- swallow)
+            yield -current
         case _ =>
           done(current)
       }

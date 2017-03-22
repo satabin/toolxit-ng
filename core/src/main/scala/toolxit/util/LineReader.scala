@@ -45,14 +45,14 @@ class LineReader(inner: Reader) {
   }
 
   def nextChar(): Option[(Char, Int, Int)] =
-    if(_lineString == null) {
+    if (_lineString == null) {
       nextLine()
-      if(_lineString == null) {
+      if (_lineString == null) {
         None
       } else {
         nextChar()
       }
-    } else if(_column >= _lineString.size) {
+    } else if (_column >= _lineString.size) {
       val res = ('\n', _line, _column)
       nextLine()
       Some(res)

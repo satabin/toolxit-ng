@@ -39,7 +39,7 @@ trait TeXMacros {
     def name: Processor[String] =
       read.flatMap {
         case ControlSequenceToken(name, _) =>
-          for(() <- swallow)
+          for (() <- swallow)
             yield name
         case t =>
           throwError(new TeXMouthException(f"Macro name must be a control sequence or an active character", t.pos))
@@ -107,7 +107,7 @@ trait TeXMacros {
           () <- swallow
           name <- name
           (appendBrace, params) <- parameters
-        } yield (false, true, name, params, appendBrace)
+        } yield (global, true, name, params, appendBrace)
       case ControlSequenceToken("xdef", _) =>
         for {
           () <- swallow
@@ -209,7 +209,7 @@ trait TeXMacros {
           args1 = replacement.flatMap {
             case ParameterToken(i) =>
               // by construction (with the parser) the parameter exists
-              if(env.debugPositions)
+              if (env.debugPositions)
                 args(i).map(a => a.atPos(pos, Some(a.pos)))
               else
                 args(i)
@@ -298,13 +298,13 @@ trait TeXMacros {
     val ordering = implicitly[Ordering[T]]
     read.flatMap {
       case CharacterToken('<', Category.OTHER_CHARACTER) =>
-        for(() <- swallow)
+        for (() <- swallow)
           yield ordering.lt
       case CharacterToken('>', Category.OTHER_CHARACTER) =>
-        for(() <- swallow)
+        for (() <- swallow)
           yield ordering.gt
       case CharacterToken('=', Category.OTHER_CHARACTER) =>
-        for(() <- swallow)
+        for (() <- swallow)
           yield ordering.equiv
       case t =>
         throwError(new TeXMouthException("Integer relation operator expected", t.pos))
@@ -344,7 +344,7 @@ trait TeXMacros {
             e <- else_(lvl, acc)
           } yield e
         case ControlSequenceToken("fi", _) if lvl == 0 =>
-          for(() <- swallow)
+          for (() <- swallow)
             yield acc
         case t @ ControlSequenceToken("fi", _) =>
           for {
@@ -366,7 +366,7 @@ trait TeXMacros {
     for {
       t <- then_(0, Nil)
       e <- else_(0, Nil)
-      () <- if(cond) pushback(t) else pushback(e)
+      () <- if (cond) pushback(t) else pushback(e)
     } yield ()
   }
 
@@ -379,7 +379,7 @@ trait TeXMacros {
             case Nil =>
               done(acc.result)
             case _ =>
-              done((acc +=current).result)
+              done((acc += current).result)
           }
         case t @ ControlSequenceToken("fi", _) =>
           for {
@@ -412,7 +412,7 @@ trait TeXMacros {
             e <- else_(lvl, acc)
           } yield e
         case ControlSequenceToken("fi", _) if lvl == 0 =>
-          for(() <- swallow)
+          for (() <- swallow)
             yield acc
         case t @ ControlSequenceToken("fi", _) =>
           for {
@@ -442,7 +442,7 @@ trait TeXMacros {
       read.flatMap {
         case CharacterToken(_, Category.SPACE) | ControlSequenceToken(_, _) if acc.nonEmpty =>
           val acc1 =
-            if(acc.endsWith(".tex"))
+            if (acc.endsWith(".tex"))
               acc
             else
               acc.append(".tex")
@@ -486,9 +486,9 @@ trait TeXMacros {
 
   // the result is in reverse order, so that it can be pushed back directly on the token stack
   private def toRoman(i: Int, idx: Int, acc: List[Token]): List[Token] =
-    if(i <= 0) {
+    if (i <= 0) {
       acc
-    } else if(i < decimals(idx)) {
+    } else if (i < decimals(idx)) {
       toRoman(i, idx + 1, acc)
     } else {
       toRoman(i - decimals(idx), 0, romans(idx) ++ acc)
@@ -510,8 +510,8 @@ trait TeXMacros {
 
   // the result is in reverse order, so that it can be pushed back directly on the token stack
   private def toTokens(negative: Boolean, n: Int): List[Token] =
-    if(n < 10) {
-      if(negative) {
+    if (n < 10) {
+      if (negative) {
         List(CharacterToken(('0' + n).toChar, Category.OTHER_CHARACTER), CharacterToken('-', Category.OTHER_CHARACTER))
       } else {
         List(CharacterToken(('0' + n).toChar, Category.OTHER_CHARACTER))
@@ -523,7 +523,7 @@ trait TeXMacros {
   // the result is in reverse order, so that it can be pushed back directly on the token stack
   private def toTokens(s: String): List[Token] =
     s.foldLeft(List.empty[Token]) { (acc, c) =>
-      if(c == ' ') {
+      if (c == ' ') {
         CharacterToken(c, Category.SPACE) :: acc
       } else {
         CharacterToken(c, Category.OTHER_CHARACTER) :: acc
@@ -556,13 +556,13 @@ trait TeXMacros {
               for {
                 () <- swallow
                 c = n(0)
-                () <- pushback(CharacterToken(c, if(c == ' ') Category.SPACE else Category.OTHER_CHARACTER))
+                () <- pushback(CharacterToken(c, if (c == ' ') Category.SPACE else Category.OTHER_CHARACTER))
                 t <- read
               } yield t
             case ControlSequenceToken(n, false) =>
               for {
                 () <- swallow
-                n1 = n.reverseMap(c => CharacterToken(c, if(c == ' ') Category.SPACE else Category.OTHER_CHARACTER)).toList
+                n1 = n.reverseMap(c => CharacterToken(c, if (c == ' ') Category.SPACE else Category.OTHER_CHARACTER)).toList
                 () <- pushback(n1)
                 () <- pushback(CharacterToken(env.escapechar, Category.OTHER_CHARACTER))
                 t <- read
@@ -570,7 +570,7 @@ trait TeXMacros {
             case CharacterToken(c, _) =>
               for {
                 () <- swallow
-                () <- pushback(CharacterToken(c, if(c == ' ') Category.SPACE else Category.OTHER_CHARACTER))
+                () <- pushback(CharacterToken(c, if (c == ' ') Category.SPACE else Category.OTHER_CHARACTER))
                 t <- read
               } yield t
             case t =>
@@ -647,7 +647,7 @@ trait TeXMacros {
         def loop(acc: List[Token]): Processor[List[Token]] =
           read.flatMap {
             case ControlSequenceToken("endcsname", _) =>
-              for(() <- swallow)
+              for (() <- swallow)
                 yield acc
             case c @ CharacterToken(_, _) =>
               for {
@@ -662,7 +662,7 @@ trait TeXMacros {
           name <- loop(Nil)
           t <- env.css(name.map(_.toString(env)).mkString) match {
             case Some(cs @ TeXMacro(_, _, _, _, _)) => expandCs(cs, start.pos)
-            case _ => read // if not found it does nothing, just go ahead
+            case _                                  => read // if not found it does nothing, just go ahead
           }
         } yield t
       case t =>

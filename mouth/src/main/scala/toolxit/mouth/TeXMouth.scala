@@ -21,6 +21,8 @@ import scala.util.Try
 import eyes._
 import util._
 
+import java.io.FileReader
+
 import scala.language.higherKinds
 
 /** The TeX mouth is a parser from tokens produced by the [[toolxit.eyes.TeXEyes]]
@@ -51,19 +53,32 @@ class TeXMouth(val env: TeXEnvironment)
 
   def accept(token: Token): Processor[Unit] =
     read.flatMap { t =>
-      if(t == token) {
-        for(() <- swallow)
-          yield ()
+      if (t == token) {
+        swallow
       } else {
         throwError(new TeXMouthException(f"Expected $token", t.pos))
       }
     }
 
   def openInput(name: String): Processor[Unit] =
-    ???
+    try {
+      val reader = new LineReader(new FileReader(name))
+      env.inputs.push(reader)
+      noop
+    } catch {
+      case e: Exception =>
+        throwError(e)
+    }
 
   val closeInput: Processor[Unit] =
-    ???
+    try {
+      val top = env.inputs.pop()
+      top.close()
+      noop
+    } catch {
+      case e: Exception =>
+        throwError(e)
+    }
 
   protected[this] object Primitive {
     def unapply(cs: ControlSequenceToken): Option[String] =
@@ -107,7 +122,7 @@ class TeXMouth(val env: TeXEnvironment)
     case Chunk(token :: rest) =>
       token match {
         case CharacterToken(_, Category.END_OF_LINE) if env.endinputEncountered =>
-          for(() <- closeInput)
+          for (() <- closeInput)
             yield token
         case _ =>
           Done(token, Chunk(rest))
@@ -144,10 +159,10 @@ class TeXMouth(val env: TeXEnvironment)
                 for {
                   () <- swallow
                   name = env.jobname.toList.reverseMap(c =>
-                      if(c == ' ')
-                        CharacterToken(c, Category.SPACE)
-                      else
-                        CharacterToken(c, Category.OTHER_CHARACTER))
+                    if (c == ' ')
+                      CharacterToken(c, Category.SPACE)
+                    else
+                      CharacterToken(c, Category.OTHER_CHARACTER))
                   () <- pushback(name)
                   t <- read
                 } yield t
@@ -171,7 +186,7 @@ class TeXMouth(val env: TeXEnvironment)
                 } yield t
               case _ =>
                 // otherwise return it
-                for(() <- swallow)
+                for (() <- swallow)
                   yield token
             }
         }
@@ -198,13 +213,12 @@ class TeXMouth(val env: TeXEnvironment)
             // define a new macro, register it and parse next command
             for {
               (global, m) <- macroDef(long, outer, global)
-              () =
-                if (global)
-                  // register the macro in global scope
-                  env.css.global(m.name) = m
-                else
-                  // register the macro in local scope
-                  env.css(m.name) = m
+              () = if (global)
+                // register the macro in global scope
+                env.css.global(m.name) = m
+              else
+                // register the macro in local scope
+                env.css(m.name) = m
               c <- command
             } yield c
 
@@ -313,7 +327,7 @@ class TeXMouth(val env: TeXEnvironment)
   val optSpace: Processor[Option[CharacterToken]] =
     read.flatMap {
       case c @ CharacterToken(_, Category.SPACE) =>
-        for(() <- swallow)
+        for (() <- swallow)
           yield Some(c)
       case _ =>
         done(None)

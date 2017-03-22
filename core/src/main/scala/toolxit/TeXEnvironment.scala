@@ -561,7 +561,7 @@ class TeXEnvironment(_jobname: String) {
     (flags & DEBUG_POSITION) != 0x0
 
   def debugPositions_=(b: Boolean): Unit =
-    if(b)
+    if (b)
       flags = flags | DEBUG_POSITION
     else
       flags = flags ^ DEBUG_POSITION

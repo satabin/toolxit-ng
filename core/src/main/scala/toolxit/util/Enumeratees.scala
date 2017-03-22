@@ -24,7 +24,7 @@ object Enumeratees {
       lazy val finished: Iteratee[EltOuter, Boolean] = Cont {
         case Chunk(Nil)       => finished
         case chunk @ Chunk(_) => Done(false, chunk)
-        case Eoi => Done(true, Eoi)
+        case Eoi              => Done(true, Eoi)
       }
       finished.flatMap {
         case true =>

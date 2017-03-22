@@ -59,16 +59,16 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
         (SUPERSCRIPT(sup2), _, _),
         (Hexa(h1), _, _),
         (Hexa(h2), _, _)) if sup1 == sup2 =>
-        for(() <- swallow(4))
+        for (() <- swallow(4))
           yield (((h1 << 4) + h2).toChar, l, c)
       case List(
         (SUPERSCRIPT(sup1), l, c),
         (SUPERSCRIPT(sup2), _, _),
         (ch, _, _), _*) if sup1 == sup2 =>
-        for(() <- swallow(3))
+        for (() <- swallow(3))
           yield (if (ch < 64) (ch + 64).toChar else (ch - 64).toChar, l, c)
       case List((ch, l, c), _*) =>
-        for(() <- swallow)
+        for (() <- swallow)
           yield (ch, l, c)
       case Nil =>
         throwError(EOIException(env.lastPosition.line, env.lastPosition.column))
@@ -116,7 +116,7 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
                 }
               } yield ControlSequenceToken(csname.mkString, false).atPos(SimplePosition(l, c))
             case Some((ch, _, _)) =>
-              for(() <- swallow)
+              for (() <- swallow)
                 yield ControlSequenceToken(ch.toString, false).atPos(SimplePosition(l, c))
             case None =>
               // we reached end of input, this is absolutely not correct

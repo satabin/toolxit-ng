@@ -46,7 +46,7 @@ sealed abstract class Iteratee[In, +Out] {
   def withFilter(f: Out => Boolean): Iteratee[In, Out] =
     this match {
       case Done(v, e) =>
-        if(f(v))
+        if (f(v))
           this
         else
           Error(new Exception("predicate does not hold"), e)
@@ -80,20 +80,22 @@ abstract class Iteratees[Elt] {
   /** Consumes one element from the input. */
   val take: Iteratee[Elt, Option[Elt]] = Cont {
     case Chunk(e :: rest) => Done(Some(e), Chunk(rest))
-    case Eoi => Done(None, Eoi)
-    case Chunk(Nil) => take
+    case Eoi              => Done(None, Eoi)
+    case Chunk(Nil)       => take
   }
 
   /** Consumes one element from the input.
-   *  If the end of input was reached, throw the specified exception. */
-  def take(t: =>Throwable): Iteratee[Elt, Elt] = Cont {
+   *  If the end of input was reached, throw the specified exception.
+   */
+  def take(t: => Throwable): Iteratee[Elt, Elt] = Cont {
     case Chunk(e :: rest) => Done(e, Chunk(rest))
-    case Eoi => Error(t, Eoi)
-    case Chunk(Nil) => take(t)
+    case Eoi              => Error(t, Eoi)
+    case Chunk(Nil)       => take(t)
   }
 
   /** Consumes elements from the input as long as the predicate holds.
-   *  The list of consumed document is returned. */
+   *  The list of consumed document is returned.
+   */
   def takeWhile(p: Elt => Boolean): Iteratee[Elt, List[Elt]] = Cont {
     case Chunk(l) =>
       l.takeWhile(p) match {
@@ -106,8 +108,8 @@ abstract class Iteratees[Elt] {
   /** Peeks one element from the input without consuming it. */
   val peek: Iteratee[Elt, Option[Elt]] = Cont {
     case in @ Chunk(e :: _) => Done(Some(e), in)
-    case Eoi => Done(None, Eoi)
-    case Chunk(Nil) => peek
+    case Eoi                => Done(None, Eoi)
+    case Chunk(Nil)         => peek
   }
 
   /** Peeks up to `n` elements from the input without consuming them. */
@@ -115,21 +117,21 @@ abstract class Iteratees[Elt] {
     case Chunk(l) if l.size >= n =>
       Done(l.take(n), Chunk(l))
     case Chunk(l1) => peek(n - l1.size).map(l2 => l1 ++ l2)
-    case Eoi => Done(Nil, Eoi)
+    case Eoi       => Done(Nil, Eoi)
   }
 
   /** Consumes the next element from the input, without returning it. */
   val swallow: Iteratee[Elt, Unit] = Cont {
     case Chunk(_ :: l) => Done((), Chunk(l))
-    case in @ Eoi => Done((), in)
-    case Chunk(Nil) => swallow
+    case in @ Eoi      => Done((), in)
+    case Chunk(Nil)    => swallow
   }
 
   /** Consumes the next `n` elements from the input, without returning them. */
   def swallow(n: Int): Iteratee[Elt, Unit] = Cont {
     case Chunk(l) if l.size >= n => Done((), Chunk(l.drop(n)))
-    case Chunk(l) => swallow(n - l.size)
-    case Eoi => Done((), Eoi)
+    case Chunk(l)                => swallow(n - l.size)
+    case Eoi                     => Done((), Eoi)
   }
 
   /** Drops elements from input until the predicate gets falsified. */
@@ -171,10 +173,10 @@ abstract class Iteratees[Elt] {
   /** A backtracking-free non deterministic choice. The first iteratees that finishes is the right one. */
   def choice[Out](it1: Iteratee[Elt, Out], it2: Iteratee[Elt, Out]): Iteratee[Elt, Out] =
     (it1, it2) match {
-      case (Done(_, _), _)      => it1
-      case (_, Done(_, _))      => it2
-      case (Error(_, _), _)     => it2
-      case (_, Error(_, _))     => it1
+      case (Done(_, _), _)  => it1
+      case (_, Done(_, _))  => it2
+      case (Error(_, _), _) => it2
+      case (_, Error(_, _)) => it1
       case (Cont(k1), Cont(k2)) => Cont { in =>
         val i1 = k1(in)
         val i2 = k2(in)

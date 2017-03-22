@@ -30,7 +30,7 @@ object Enumerator {
       try {
         env.inputs.headOption match {
           case Some(input) =>
-            if(env.endOfLineEncountered) {
+            if (env.endOfLineEncountered) {
               // don't care about the rest of the line, just go ahead
               input.nextLine()
               // and of course reset this state
@@ -38,7 +38,7 @@ object Enumerator {
             }
             input.nextChar() match {
               case Some(c) =>
-                if(env.endinputEncountered && c._1 == '\n') {
+                if (env.endinputEncountered && c._1 == '\n') {
                   // we must close the input
                   input.close()
                   env.inputs.pop
