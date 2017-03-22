@@ -15,6 +15,8 @@
 */
 package toolxit
 
+import util._
+
 /** @author Lucas Satabin
  *
  */

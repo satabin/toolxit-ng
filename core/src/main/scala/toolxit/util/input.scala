@@ -16,7 +16,17 @@
 package toolxit
 package util
 
-sealed trait Input[+Elt]
+sealed abstract class Input[+Elt] {
+
+  def ++[Elt1 >: Elt](that: Input[Elt1]): Input[Elt1] = (this, that) match {
+    case (Eoi, _)                     => that
+    case (_, Eoi)                     => this
+    case (Chunk(Nil), _)              => that
+    case (_, Chunk(Nil))              => this
+    case (Chunk(elts1), Chunk(elts2)) => Chunk(elts1 ++ elts2)
+  }
+
+}
 
 case object Eoi extends Input[Nothing]
 final case class Chunk[Elt](elt: List[Elt]) extends Input[Elt]

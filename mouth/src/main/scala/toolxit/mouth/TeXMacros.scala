@@ -36,16 +36,16 @@ trait TeXMacros {
   def macroDef(long: Boolean, outer: Boolean, global: Boolean): Processor[(Boolean, TeXMacro)] = {
 
     // a macro name is an unexpanded control sequence
-    def name: Processor[String] =
-      read.flatMap {
+    val name: Processor[String] =
+      raw.flatMap {
         case ControlSequenceToken(name, _) =>
           for (() <- swallow)
             yield name
         case t =>
-          throwError(new TeXMouthException(f"Macro name must be a control sequence or an active character", t.pos))
+          throwError(new TeXMouthException(f"Macro name must be a control sequence or an active character but got $t", t.pos))
       }
 
-    def parameters: Processor[(Boolean, List[Token])] = {
+    val parameters: Processor[(Boolean, List[Token])] = {
       def loop(nextParam: Int, acc: List[Token]): Processor[(Boolean, List[Token])] = raw.flatMap {
         case CharacterToken(_, Category.PARAMETER) =>
           for {
@@ -119,7 +119,7 @@ trait TeXMacros {
     }
 
     def replacement(appendBrace: Boolean): Processor[List[Token]] =
-      group(true, false).map {
+      group(true, false, true).map {
         case GroupToken(_, tokens, _) =>
           if (appendBrace)
             CharacterToken('{', Category.BEGINNING_OF_GROUP) :: tokens
@@ -134,6 +134,7 @@ trait TeXMacros {
           (global, expanded, name, params, appendBrace) <- macroDecl(global)
           // and the replacement text expanded only if needed
           replacement <- withExpansion(expanded)(replacement(appendBrace))
+          () = println(f"defined macro $name -> $params -> $replacement")
         } yield (global, TeXMacro(name, params, replacement, long, outer))
 
       case t =>
@@ -163,9 +164,15 @@ trait TeXMacros {
           case tok @ ControlSequenceToken("par", _) if !long =>
             throwError(new TeXMouthException("Runaway argument. new paragraph is not allowed in the parameter list", tok.pos))
           case tok if tok == stop =>
-            loop(parameters, None, Nil, localAcc :: acc)
+            for {
+              () <- swallow
+              p <- loop(parameters, None, Nil, localAcc :: acc)
+            } yield p
           case tok =>
-            loop(parameters, Some(stop), tok :: localAcc, acc)
+            for {
+              () <- swallow
+              p <- loop(parameters, Some(stop), tok :: localAcc, acc)
+            } yield p
         }
       case None =>
         parameters match {
@@ -177,10 +184,14 @@ trait TeXMacros {
                 for {
                   // an undelimited parameter
                   t <- raw
+                  () <- swallow
                   res <- loop(rest, None, Nil, List(t) :: acc)
                 } yield res
               case token :: rest =>
-                loop(rest, Some(token), Nil, acc)
+                for {
+                  () <- swallow
+                  p <- loop(rest, Some(token), Nil, acc)
+                } yield p
             }
           case (token @ (ControlSequenceToken(_, _) | CharacterToken(_, _))) :: rest =>
             for {
@@ -200,7 +211,7 @@ trait TeXMacros {
     cs match {
       case TeXMacro(_, parameters, replacement, long, outer) =>
         for {
-          // consume the macro name name
+          // consume the macro name
           () <- swallow
           // parse the arguments
           args <- arguments(long, parameters)
@@ -210,9 +221,9 @@ trait TeXMacros {
             case ParameterToken(i) =>
               // by construction (with the parser) the parameter exists
               if (env.debugPositions)
-                args(i).map(a => a.atPos(pos, Some(a.pos)))
+                args(i - 1).map(a => a.atPos(pos, Some(a.pos)))
               else
-                args(i)
+                args(i - 1)
             case token =>
               List(token)
           }

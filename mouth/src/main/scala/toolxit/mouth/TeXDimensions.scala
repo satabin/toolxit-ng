@@ -21,7 +21,7 @@ import dimen.Dimension
 trait TeXDimensions {
   this: TeXMouth =>
 
-  val dimen: Processor[Dimension] =
+  lazy val dimen: Processor[Dimension] =
     ???
 
 }

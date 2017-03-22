@@ -28,11 +28,11 @@ sealed abstract class Iteratee[In, +Out] {
     this match {
       case Done(v, Eoi) =>
         f(v)
-      case Done(v, e) =>
+      case Done(v, e1) =>
         f(v) match {
-          case Done(v, _)  => Done(v, e)
-          case Cont(k)     => k(e)
-          case Error(t, e) => Error(t, e)
+          case Done(v, e2)  => Done(v, e2 ++ e1)
+          case Cont(k)      => k(e1)
+          case Error(t, e2) => Error(t, e2 ++ e1)
         }
       case Error(t, e) =>
         Error(t, e)
@@ -96,13 +96,17 @@ abstract class Iteratees[Elt] {
   /** Consumes elements from the input as long as the predicate holds.
    *  The list of consumed document is returned.
    */
-  def takeWhile(p: Elt => Boolean): Iteratee[Elt, List[Elt]] = Cont {
-    case Chunk(l) =>
-      l.takeWhile(p) match {
-        case Nil  => takeWhile(p).map(rest => l ++ rest)
-        case rest => Done(l, Chunk(rest))
+  def takeWhile(p: Elt => Boolean): Iteratee[Elt, List[Elt]] = {
+    def inner(prefix: List[Elt]): Iteratee[Elt, List[Elt]] =
+      Cont {
+        case Chunk(l) =>
+          l.span(p) match {
+            case (p, Nil)    => inner(prefix ++ p)
+            case (p, suffix) => Done(prefix ++ p, Chunk(suffix))
+          }
+        case Eoi => Done(prefix, Eoi)
       }
-    case Eoi => Done(Nil, Eoi)
+    inner(Nil)
   }
 
   /** Peeks one element from the input without consuming it. */
@@ -113,11 +117,14 @@ abstract class Iteratees[Elt] {
   }
 
   /** Peeks up to `n` elements from the input without consuming them. */
-  def peek(n: Int): Iteratee[Elt, List[Elt]] = Cont {
-    case Chunk(l) if l.size >= n =>
-      Done(l.take(n), Chunk(l))
-    case Chunk(l1) => peek(n - l1.size).map(l2 => l1 ++ l2)
-    case Eoi       => Done(Nil, Eoi)
+  def peek(n: Int): Iteratee[Elt, List[Elt]] = {
+    def inner(n: Int, prefix: List[Elt]): Iteratee[Elt, List[Elt]] =
+      Cont {
+        case Chunk(l) if l.size >= n => Done(prefix ++ l.take(n), Chunk(prefix ++ l))
+        case Chunk(l1)               => inner(n - l1.size, prefix ++ l1)
+        case Eoi                     => Done(prefix, Chunk(prefix))
+      }
+    inner(n, Nil)
   }
 
   /** Consumes the next element from the input, without returning it. */
@@ -170,11 +177,22 @@ abstract class Iteratees[Elt] {
     case Eoi              => Done(true, Eoi)
   }
 
+  def manyDrop[Res](it: Iteratee[Elt, Res]): Iteratee[Elt, Unit] =
+    choice(for {
+      _ <- it
+      () <- manyDrop(it)
+    } yield (), done(Nil))
+
+  def many1Drop[Res](it: Iteratee[Elt, Res]): Iteratee[Elt, Unit] =
+    for {
+      _ <- it
+      () <- many1Drop(it)
+    } yield ()
+
   /** A backtracking-free non deterministic choice. The first iteratees that finishes is the right one. */
   def choice[Out](it1: Iteratee[Elt, Out], it2: Iteratee[Elt, Out]): Iteratee[Elt, Out] =
     (it1, it2) match {
       case (Done(_, _), _)  => it1
-      case (_, Done(_, _))  => it2
       case (Error(_, _), _) => it2
       case (_, Error(_, _)) => it1
       case (Cont(k1), Cont(k2)) => Cont { in =>
@@ -182,6 +200,48 @@ abstract class Iteratees[Elt] {
         val i2 = k2(in)
         choice(i1, i2)
       }
+      case (Cont(k1), Done(_, _)) => Cont { in =>
+        val i1 = k1(in)
+        choice(i1, it2)
+      }
     }
+
+  def fold[Out, Res](it: Iteratee[Elt, Out])(z: Res)(f: (Res, Out) => Res): Iteratee[Elt, Res] = {
+    def inner(acc: Res, i: Iteratee[Elt, Out]): Iteratee[Elt, Res] = i match {
+      case Cont(k) =>
+        Cont {
+          case c @ Chunk(_) =>
+            k(c).flatMap(v => inner(f(acc, v), it))
+          case Eoi =>
+            i.map(v => f(acc, v))
+        }
+      case Done(v, Eoi) =>
+        done(f(acc, v))
+      case Done(v, rest) =>
+        inner(f(acc, v), it)
+      case e @ Error(_, _) =>
+        e
+    }
+    inner(z, it)
+  }
+
+  def reduce[Out](it: Iteratee[Elt, Out])(f: (Out, Out) => Out): Iteratee[Elt, Out] = {
+    def inner(acc: Option[Out], i: Iteratee[Elt, Out]): Iteratee[Elt, Out] = i match {
+      case Cont(k) =>
+        Cont {
+          case c @ Chunk(_) =>
+            k(c).flatMap(v => inner(acc.map(f(_, v)).orElse(Some(v)), it))
+          case Eoi =>
+            i.map(v => acc.map(f(_, v)).getOrElse(v))
+        }
+      case Done(v, Eoi) =>
+        Done(acc.map(f(_, v)).getOrElse(v), Eoi)
+      case Done(v, rest) =>
+        inner(acc.map(f(_, v)).orElse(Some(v)), it)
+      case e @ Error(_, _) =>
+        e
+    }
+    inner(None, it)
+  }
 
 }

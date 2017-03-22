@@ -573,6 +573,10 @@ class TeXEnvironment(_jobname: String) {
   category(0) = Category.INVALID_CHARACTER
   category('%') = Category.COMMENT_CHARACTER
   category('\\') = Category.ESCAPE_CHARACTER
+  category('#') = Category.PARAMETER
+  // TODO remove later
+  category('{') = Category.BEGINNING_OF_GROUP
+  category('}') = Category.END_OF_GROUP
 
 }
 

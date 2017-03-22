@@ -114,10 +114,11 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
                   case (LETTER(_), _, _) => true
                   case _                 => false
                 }
-              } yield ControlSequenceToken(csname.mkString, false).atPos(SimplePosition(l, c))
+              } yield ControlSequenceToken(csname.map(_._1).mkString, false).atPos(SimplePosition(l, c))
             case Some((ch, _, _)) =>
-              for (() <- swallow)
-                yield ControlSequenceToken(ch.toString, false).atPos(SimplePosition(l, c))
+              for (() <- swallow) yield {
+                ControlSequenceToken(ch.toString, false).atPos(SimplePosition(l, c))
+              }
             case None =>
               // we reached end of input, this is absolutely not correct
               throwError(new TeXEyesException(l, c, "control sequence name expected but end of input reached"))

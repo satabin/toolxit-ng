@@ -18,7 +18,6 @@ package mouth
 
 import scala.util.Try
 
-import eyes._
 import util._
 
 import java.io.FileReader
@@ -117,19 +116,26 @@ class TeXMouth(val env: TeXEnvironment)
     }
   }
 
-  /** Returns the next unexpanded token */
-  lazy val raw: Processor[Token] = Cont {
+  override val swallow: Processor[Unit] = Cont {
     case Chunk(token :: rest) =>
       token match {
         case CharacterToken(_, Category.END_OF_LINE) if env.endinputEncountered =>
-          for (() <- closeInput)
-            yield token
+          for {
+            () <- closeInput
+          } yield Done((), Chunk(rest))
         case _ =>
-          Done(token, Chunk(rest))
+          Done((), Chunk(rest))
       }
     case Chunk(Nil) =>
-      raw
+      swallow
     case Eoi =>
+      done((), Eoi)
+  }
+
+  /** Returns the next unexpanded token */
+  lazy val raw: Processor[Token] = peek.flatMap {
+    case Some(t) => done(t)
+    case None =>
       throwError(new TeXMouthException("End of input encountered", env.lastPosition))
   }
 
@@ -182,12 +188,10 @@ class TeXMouth(val env: TeXEnvironment)
                 for {
                   () <- swallow
                   t <- raw
-                  () <- swallow
                 } yield t
               case _ =>
                 // otherwise return it
-                for (() <- swallow)
-                  yield token
+                done(token)
             }
         }
       case t =>
@@ -200,16 +204,29 @@ class TeXMouth(val env: TeXEnvironment)
     modifiers().flatMap {
       case (long, outer, global) =>
         read.flatMap {
+          case tok @ CharacterToken(c, Category.END_OF_GROUP) =>
+            throwError(new TeXMouthException(f"Too many $c's.", tok.pos))
+
+          case CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
+            for {
+              GroupToken(_, tokens, _) <- group(true, true, false)
+              () <- pushback(tokens)
+              c <- command
+            } yield c
+
           case char @ CharacterToken(c, _) =>
             if (long || outer || global) {
               throwError(new TeXMouthException(f"You cannot use a prefix with `the letter $c'", char.pos))
             } else {
               // This will probably be the case most of the time,
               // the command is simply to type set some character.
-              done(CTypeset(c).atPos(char.pos))
+              for {
+                () <- swallow
+                ts <- done(CTypeset(c).atPos(char.pos))
+              } yield ts
             }
 
-          case Primitive("def" | "gdef" | "edef" | "xdef") =>
+          case p @ Primitive("def" | "gdef" | "edef" | "xdef") =>
             // define a new macro, register it and parse next command
             for {
               (global, m) <- macroDef(long, outer, global)
@@ -223,7 +240,10 @@ class TeXMouth(val env: TeXEnvironment)
             } yield c
 
           case cs @ ControlSequenceToken(name, _) =>
-            done(CControlSequence(name).atPos(cs.pos))
+            for {
+              () <- swallow
+              cs <- done(CControlSequence(name).atPos(cs.pos))
+            } yield cs
 
           case t =>
             throwError(new TeXMouthException(f"Unexpected token $t instead of a TeX command", t.pos))
@@ -269,7 +289,7 @@ class TeXMouth(val env: TeXEnvironment)
    *  this group.
    *  Typically, when parsing a group as a replacement text of a macro definition, they are not allowed.
    */
-  def group(reverted: Boolean, allowOuter: Boolean): Processor[GroupToken] = {
+  def group(reverted: Boolean, allowOuter: Boolean, withParams: Boolean): Processor[GroupToken] = {
     def loop(level: Int, open: Token, acc: List[Token]): Processor[GroupToken] = read.flatMap {
       case tok @ CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
         for {
@@ -298,6 +318,25 @@ class TeXMouth(val env: TeXEnvironment)
         // macro declared as `outer' are not allowed in the parameter text
         throwError(new TeXMouthException(f"Macro $name declared as `\\outer` is not allowed in parameter text", tok.pos))
 
+      case param @ CharacterToken(_, Category.PARAMETER) if withParams =>
+        // parsing a group with parameters inside
+        for {
+          () <- swallow
+          tok <- read
+          tok <- tok match {
+            case tok @ CharacterToken(_, Category.PARAMETER) =>
+              // this is an escaped parameter token
+              for (() <- swallow)
+                yield tok
+            case CharacterToken(int(i), _) =>
+              // this is a parameter token
+              for (() <- swallow)
+                yield ParameterToken(i).atPos(param.pos)
+            case tok =>
+              throwError(new TeXMouthException(f"Expecting an integer or a parameter token but got $tok", tok.pos))
+          }
+          g <- loop(level, open, tok :: acc)
+        } yield g
       case tok =>
         for {
           // any other character is consumed

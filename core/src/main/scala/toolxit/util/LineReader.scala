@@ -52,12 +52,16 @@ class LineReader(inner: Reader) {
       } else {
         nextChar()
       }
-    } else if (_column >= _lineString.size) {
-      val res = ('\n', _line, _column)
+    } else if (_column > _lineString.size) {
+      val l = _line
+      val c = _column
       nextLine()
-      Some(res)
+      if (_lineString == null)
+        None
+      else
+        Some(('\n', l, c))
     } else {
-      val c = _lineString(_column)
+      val c = _lineString(_column - 1)
       _column += 1
       Some((c, _line, _column - 1))
     }
