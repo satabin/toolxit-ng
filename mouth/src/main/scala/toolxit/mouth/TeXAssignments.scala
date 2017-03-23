@@ -27,7 +27,7 @@ trait TeXAssignments {
         true
       case CountdefToken(_) =>
         true
-      case Primitive("count" | "advance" | "multiply" | "divide" | "chardef") =>
+      case Primitive("count" | "advance" | "multiply" | "divide" | "chardef" | "let") =>
         true
       case Primitives.Codename(_) =>
         true
@@ -54,7 +54,7 @@ trait TeXAssignments {
       case tok                           => throwError(new TeXMouthException(f"Expected control sequence but got $tok.", tok.pos))
     }
 
-  def simpleAssignment(global: Boolean): Processor[Assignment] =
+  def simpleAssignment(global: Boolean): Processor[Command] =
     read.flatMap {
       // chardef
       case tok @ Primitive("chardef") =>
@@ -64,6 +64,18 @@ trait TeXAssignments {
           () <- equals
           c <- char(tok.pos)
         } yield CharacterDefinition(cs, c, global)
+
+      // let and futurelet
+      case tok @ Primitive("let") =>
+        for {
+          () <- swallow
+          cs <- controlsequence
+          () <- equals
+          _ <- optSpace
+          t <- raw
+          () <- swallow
+        } yield LetAssignment(cs, t, global)
+
       // integer variables
       case Primitives.IntegerParameter(name) =>
         for {

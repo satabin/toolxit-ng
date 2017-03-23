@@ -95,7 +95,7 @@ final case class TeXMacro(name: String,
 }
 
 final case class TeXCsAlias(name: String,
-    replacement: TeXMacro) extends ControlSequence {
+    tokens: Token) extends ControlSequence {
   val tpe = TeXType.TeXAlias
 }
 

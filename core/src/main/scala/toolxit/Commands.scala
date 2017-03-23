@@ -81,3 +81,6 @@ case class CategoryAssignment(c: Char, cat: Category, global: Boolean) extends A
 
 /** A character definition. */
 case class CharacterDefinition(name: String, c: Char, global: Boolean) extends Assignment
+
+/** A `\let` assignment. */
+case class LetAssignment(name: String, meaning: Token, global: Boolean) extends Assignment

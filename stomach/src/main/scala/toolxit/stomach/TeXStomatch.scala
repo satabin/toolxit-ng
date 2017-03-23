@@ -44,6 +44,16 @@ class TeXStomach(env: TeXEnvironment, log: PrintWriter, out: PrintWriter) extend
     case IntegerParameterAssignment(name, v, mode, global) => env.integerParameter(name, mode, global) = v
     case CategoryAssignment(char, cat, global)             => env.category(char, global) = cat
     case CharacterDefinition(name, char, global)           => env.css(name, global) = TeXChar(name, char)
+    case LetAssignment(name, alias, global) => alias match {
+      case cs @ ControlSequenceToken(alias, _) => env.css(alias) match {
+        case Some(cs) => env.css(name, global) = cs
+        case None =>
+          // if the control sequence does not exist, then no alias is created
+          if (Primitives.all.contains(alias))
+            env.css(name, global) = TeXCsAlias(name, cs)
+      }
+      case _ => env.css(name, global) = TeXCsAlias(name, alias)
+    }
   }
 
 }
