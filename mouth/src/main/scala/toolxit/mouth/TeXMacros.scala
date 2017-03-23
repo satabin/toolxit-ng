@@ -243,6 +243,15 @@ trait TeXMacros {
           // and read again
           t <- read
         } yield t
+
+      case TeXChar(_, c) =>
+        for {
+          () <- swallow
+          () <- pushback(CharacterToken(c, env.category(c)))
+          // read again
+          t <- read
+        } yield t
+
       case _ =>
         ???
     }

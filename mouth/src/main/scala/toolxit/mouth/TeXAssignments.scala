@@ -27,7 +27,7 @@ trait TeXAssignments {
         true
       case CountdefToken(_) =>
         true
-      case ControlSequenceToken("count" | "advance" | "multiply" | "divide", _) =>
+      case Primitive("count" | "advance" | "multiply" | "divide" | "chardef") =>
         true
       case Primitives.Codename(_) =>
         true
@@ -39,7 +39,7 @@ trait TeXAssignments {
   val equals: Processor[Unit] =
     for {
       () <- spaces
-      e <- read
+      e <- raw
       () <- e match {
         case CharacterToken('=', Category.OTHER_CHARACTER) => swallow
         case _ => noop
@@ -48,8 +48,22 @@ trait TeXAssignments {
 
   val by = keyword("by", true)
 
+  val controlsequence: Processor[String] =
+    raw.flatMap {
+      case ControlSequenceToken(name, _) => swallow.andThen(done(name))
+      case tok                           => throwError(new TeXMouthException(f"Expected control sequence but got $tok.", tok.pos))
+    }
+
   def simpleAssignment(global: Boolean): Processor[Assignment] =
     read.flatMap {
+      // chardef
+      case tok @ Primitive("chardef") =>
+        for {
+          () <- swallow
+          cs <- controlsequence
+          () <- equals
+          c <- char(tok.pos)
+        } yield CharacterDefinition(cs, c, global)
       // integer variables
       case Primitives.IntegerParameter(name) =>
         for {

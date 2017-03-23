@@ -343,7 +343,7 @@ class TeXMouth(val env: TeXEnvironment)
 
   /** Reads an space character (with category code SPACE). */
   val optSpace: Processor[Option[CharacterToken]] =
-    read.flatMap {
+    raw.flatMap {
       case c @ CharacterToken(_, Category.SPACE) =>
         for (() <- swallow)
           yield Some(c)

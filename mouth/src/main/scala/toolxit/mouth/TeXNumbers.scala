@@ -200,6 +200,10 @@ trait TeXNumbers {
           for (() <- swallow)
             yield env.integers.getOrElse(name, 0)
 
+        case ControlSequenceToken(CharDef(c), _) =>
+          for (() <- swallow)
+            yield c.toInt
+
         case tok =>
           throwError[Token](new TeXMouthException(f"Expected integer but got $tok", tok.pos))
 
@@ -212,5 +216,12 @@ trait TeXNumbers {
       sign <- signs()
       i <- unsignedNumber
     } yield sign * i
+
+  object CharDef {
+    def unapply(name: String): Option[Char] = env.css(name) match {
+      case Some(TeXChar(_, c)) => Some(c)
+      case _                   => None
+    }
+  }
 
 }

@@ -283,6 +283,11 @@ class TeXEnvironment(_jobname: String) {
     def update(name: String, cs: ControlSequence) =
       locals.controlSequences(name) = cs
 
+    def update(name: String, global: Boolean, cs: ControlSequence): Unit = {
+      val css = if (global) root.controlSequences else locals.controlSequences
+      css(name) = cs
+    }
+
     /** Returns the name of all control sequences defined in the current context. */
     def names: Set[String] =
       locals.allConreolSequences
@@ -687,12 +692,13 @@ class TeXEnvironment(_jobname: String) {
 
   // set specific categories statically known at the beginning
   // when a fresh root environment is created
+  category('\r') = Category.IGNORED_CHARACTER
   category('\n') = Category.END_OF_LINE
   category(' ') = Category.SPACE
-  category(0) = Category.INVALID_CHARACTER
+  category(0) = Category.IGNORED_CHARACTER
   category('%') = Category.COMMENT_CHARACTER
   category('\\') = Category.ESCAPE_CHARACTER
-  category('#') = Category.PARAMETER
+  category(127) = Category.INVALID_CHARACTER
 
 }
 

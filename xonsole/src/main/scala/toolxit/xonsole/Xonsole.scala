@@ -49,47 +49,48 @@ class Xonsole {
 
     val terminal = TerminalBuilder.builder().build()
 
-    // \ is not an escape character
-    val parser = new DefaultParser
-    parser.setEscapeChars(Array.empty[Char])
-
-    val reader = LineReaderBuilder.builder()
-      .terminal(terminal)
-      .parser(parser)
-      .completer(new TeXCompleter(environment))
-      .build()
-    // TeX makes heavy use of \ which should not be expanded as event
-    reader.setOpt(LineReader.Option.DISABLE_EVENT_EXPANSION)
-
-    reader.setVariable(LineReader.HISTORY_FILE, Paths.get(Properties.userHome, ".xonsole_history"));
-
-    val eyes = new TeXEyes(environment)
-
-    val mouth = new TeXMouth(environment)
-
     val out = new PrintWriter(new FileOutputStream(f"xonsole.txt"))
 
-    val stomach = new TeXStomach(environment, terminal.writer, out)
-
-    val it =
-      Enumeratees.join(
-        Enumeratees.sequenceStream(eyes.tokenize)(Enumeratees.join(Enumeratees.sequenceStream(mouth.command)(stomach.process))))
-
-    for (f <- format) {
-      val enumerator = Enumerator.resource[Unit](f"/$f.tex")
-      val i = enumerator(it).flatMap(run(3, _))
-      i match {
-        case Success(()) =>
-        // format loaded
-        case Failure(t) =>
-          t.printStackTrace
-      }
-    }
-
-    terminal.writer.println(f"This is Xonsole, Version 0.0.1${format.fold("")(f => f" (preloaded format=$f)")}")
-
     try {
-      var fst = true
+      // \ is not an escape character
+      val parser = new DefaultParser
+      parser.setEscapeChars(Array.empty[Char])
+
+      val reader = LineReaderBuilder.builder()
+        .terminal(terminal)
+        .parser(parser)
+        .completer(new TeXCompleter(environment))
+        .build()
+      // TeX makes heavy use of \ which should not be expanded as event
+      reader.setOpt(LineReader.Option.DISABLE_EVENT_EXPANSION)
+
+      reader.setVariable(LineReader.HISTORY_FILE, Paths.get(Properties.userHome, ".xonsole_history"));
+
+      val eyes = new TeXEyes(environment)
+
+      val mouth = new TeXMouth(environment)
+
+      val stomach = new TeXStomach(environment, terminal.writer, out)
+
+      val it =
+        Enumeratees.join(
+          Enumeratees.sequenceStream(eyes.tokenize)(Enumeratees.join(Enumeratees.sequenceStream(mouth.command)(stomach.process))))
+
+      for (f <- format) {
+        val enumerator = Enumerator.resource[Unit](f"/$f.tex")
+        val i = enumerator(it).flatMap(run(3, _))
+        i match {
+          case Success(())                 =>
+          // format loaded
+          case Failure(EOIException(_, _)) =>
+          // format loaded
+          case Failure(t) =>
+            t.printStackTrace
+        }
+      }
+
+      terminal.writer.println(f"This is Xonsole, Version 0.0.1${format.fold("")(f => f" (preloaded format=$f)")}")
+
       while (true) {
         try {
 
@@ -103,7 +104,7 @@ class Xonsole {
 
             // we give a credit of 3 retries because of the peeking of 4 characters
             // to expand escaped characters
-            val i = enumerator(it).flatMap(run(3, _))
+            val i = enumerator(it).flatMap(run(4, _))
 
             i match {
               case Success(()) =>

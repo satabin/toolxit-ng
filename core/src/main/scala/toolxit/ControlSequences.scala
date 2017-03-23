@@ -56,7 +56,7 @@ final case class TeXInteger(name: String,
 }
 
 final case class TeXChar(name: String,
-    number: Byte) extends ControlSequence {
+    char: Char) extends ControlSequence {
   val tpe = TeXType.TeXChar
 }
 

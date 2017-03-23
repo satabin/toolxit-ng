@@ -77,4 +77,7 @@ case class IntegerParameterAssignment(name: String, value: Int, mode: Assignment
 case class CounterAssignment(id: Byte, value: Int, mode: AssignmentMode, global: Boolean) extends Assignment
 
 /** A character category assignment */
-case class CategoryAssignment(c: Char, cat: Category, globa: Boolean) extends Assignment
+case class CategoryAssignment(c: Char, cat: Category, global: Boolean) extends Assignment
+
+/** A character definition. */
+case class CharacterDefinition(name: String, c: Char, global: Boolean) extends Assignment

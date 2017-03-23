@@ -14,6 +14,17 @@
 
 % This is a minimal TeX format for testing purpose mainly
 
-\catcode`{=1
-\catcode`}=2
-\catcode`^=7
+\catcode`\{=1%
+\catcode`\}=2%
+\catcode`\$=3%
+\catcode`\&=4%
+\catcode`\#=6%
+\catcode`\^=7%
+\catcode`\^^K=7%
+\catcode`\_=8%
+\catcode`\^^A=8%
+\catcode`\^^I=10%
+\chardef\active=13%
+\catcode`\~=\active%
+\catcode`\^^L=\active%
+\outer\def^^L{\par}%

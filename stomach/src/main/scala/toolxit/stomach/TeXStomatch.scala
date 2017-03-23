@@ -43,6 +43,7 @@ class TeXStomach(env: TeXEnvironment, log: PrintWriter, out: PrintWriter) extend
     case CounterAssignment(cnt, v, mode, global)           => env.count(cnt, mode, global) = v
     case IntegerParameterAssignment(name, v, mode, global) => env.integerParameter(name, mode, global) = v
     case CategoryAssignment(char, cat, global)             => env.category(char, global) = cat
+    case CharacterDefinition(name, char, global)           => env.css(name, global) = TeXChar(name, char)
   }
 
 }

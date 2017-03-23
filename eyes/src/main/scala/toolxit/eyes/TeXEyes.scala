@@ -74,6 +74,27 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
         throwError(EOIException(env.lastPosition.line, env.lastPosition.column))
     }
 
+  val letters: Processor[String] =
+    peek.flatMap {
+      case Some(_) =>
+        preprocessor.flatMap {
+          case (LETTER(l), _, _) =>
+            letters.map(l + _)
+          case tok => pushback(tok).andThen(done(""))
+        }
+      case None => done("")
+    }
+
+  val comment: Processor[Unit] =
+    peek.flatMap {
+      case Some(_) =>
+        preprocessor.flatMap {
+          case (END_OF_LINE(_), _, _) => noop
+          case _                      => comment
+        }
+      case None => noop
+    }
+
   val tokenize: Processor[Token] =
     for {
       (ch, l, c) <- preprocessor
@@ -88,12 +109,7 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
           // when a comment started it lasts until the end of line is reached
           // the end of line character is then eaten as well
           for {
-            next <- dropWhile {
-              case (END_OF_LINE(_), _, _) => false
-              case _                      => true
-            }
-            // eat the end of line character
-            () <- next.fold(noop)(_ => swallow)
+            () <- comment
             t <- tokenize
           } yield t
         case ACTIVE_CHARACTER(ch) =>
@@ -106,21 +122,15 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
           // or a single other character
           // after control sequence we go into the 'skipping blanks' state
           env.state = ReadingState.S
-          peek.flatMap {
-            case Some((LETTER(_), _, _)) =>
+          preprocessor.flatMap {
+            case (LETTER(f), _, _) =>
               for {
-                csname <- takeWhile {
-                  case (LETTER(_), _, _) => true
-                  case _                 => false
-                }
-              } yield ControlSequenceToken(csname.map(_._1).mkString, false).atPos(SimplePosition(l, c))
-            case Some((ch, _, _)) =>
+                csname <- letters
+              } yield ControlSequenceToken(f + csname, false).atPos(SimplePosition(l, c))
+            case (ch, _, _) =>
               for (() <- swallow) yield {
                 ControlSequenceToken(ch.toString, false).atPos(SimplePosition(l, c))
               }
-            case None =>
-              // we reached end of input, this is absolutely not correct
-              throwError(new TeXEyesException(l, c, "control sequence name expected but end of input reached"))
           }
         case END_OF_LINE(_) if env.state == ReadingState.N =>
           // when reading end of line and if we are in the 'new line' reading state,
