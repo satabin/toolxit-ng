@@ -269,6 +269,14 @@ trait TeXMacros {
           t <- read
         } yield t
 
+      case TeXCsAlias(_, t) =>
+        for {
+          () <- swallow
+          () <- pushback(t)
+          // read again
+          t <- read
+        } yield t
+
       case _ =>
         ???
     }

@@ -27,7 +27,7 @@ trait TeXAssignments {
         true
       case CountdefToken(_) =>
         true
-      case Primitive("count" | "advance" | "multiply" | "divide" | "chardef" | "let") =>
+      case Primitive("count" | "advance" | "multiply" | "divide" | "chardef" | "let" | "futurelet") =>
         true
       case Primitives.Codename(_) =>
         true
@@ -75,6 +75,18 @@ trait TeXAssignments {
           t <- raw
           () <- swallow
         } yield LetAssignment(cs, t, global)
+
+      case Primitive("futurelet") =>
+        for {
+          () <- swallow
+          cs <- controlsequence
+          () <- equals
+          _ <- optSpace
+          t1 <- raw
+          () <- swallow
+          t2 <- raw
+          () <- pushback(t1)
+        } yield LetAssignment(cs, t2, global)
 
       // integer variables
       case Primitives.IntegerParameter(name) =>
