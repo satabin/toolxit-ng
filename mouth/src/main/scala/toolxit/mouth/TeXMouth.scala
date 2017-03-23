@@ -111,7 +111,7 @@ class TeXMouth(val env: TeXEnvironment)
   }
 
   /** Returns the next token, expanded if necessary */
-  protected[this] val read: Processor[Token] =
+  protected[this] lazy val read: Processor[Token] =
     raw.flatMap { token =>
       if (!env.expanding)
         done(token)

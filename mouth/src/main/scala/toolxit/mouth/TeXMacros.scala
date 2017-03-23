@@ -261,7 +261,7 @@ trait TeXMacros {
           t <- read
         } yield t
 
-      case TeXChar(_, c) =>
+      case TeXChar(_, c) if !env.macrosOnly =>
         for {
           () <- swallow
           () <- pushback(CharacterToken(c, env.category(c)))
@@ -269,7 +269,7 @@ trait TeXMacros {
           t <- read
         } yield t
 
-      case TeXCsAlias(_, t) =>
+      case TeXCsAlias(_, t) if !env.macrosOnly =>
         for {
           () <- swallow
           () <- pushback(t)
@@ -278,7 +278,10 @@ trait TeXMacros {
         } yield t
 
       case _ =>
-        ???
+        for {
+          // return it raw
+          t <- raw
+        } yield t
     }
 
   def expandIf: Processor[Token] =

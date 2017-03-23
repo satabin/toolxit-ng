@@ -84,6 +84,8 @@ class Xonsole {
           // format loaded
           case Failure(EOIException(_, _)) =>
           // format loaded
+          case Failure(TeXMouthException(msg, pos)) =>
+            terminal.writer.println(f"$pos $msg")
           case Failure(t) =>
             t.printStackTrace
         }

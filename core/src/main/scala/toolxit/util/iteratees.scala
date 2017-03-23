@@ -49,7 +49,7 @@ abstract class Iteratees[Elt] {
 
   @inline
   def noop(implicit name: sourcecode.Enclosing): Iteratee[Elt, Unit] =
-    Done(())
+    Cont(None, s => Try(done(()) -> s))
 
   @inline
   def doneM[A](v: A, s: Stream[Elt])(implicit name: sourcecode.Enclosing): Try[(Iteratee[Elt, A], Stream[Elt])] =

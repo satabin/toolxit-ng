@@ -30,7 +30,7 @@ trait TeXNumbers {
   final def signs(current: Int = 1): Processor[Int] =
     for {
       _ <- spaces
-      s <- raw
+      s <- read
       s <- s match {
         case CharacterToken('+', Category.OTHER_CHARACTER) =>
           for (() <- swallow)
@@ -120,7 +120,7 @@ trait TeXNumbers {
 
   val unsignedNumber: Processor[Int] =
     for {
-      tok <- raw
+      tok <- read
       i <- tok match {
         case t if isDecimalDigit(t) =>
           integerConstant
@@ -138,7 +138,7 @@ trait TeXNumbers {
           for {
             () <- swallow
             // the character token is not expanded
-            next <- raw
+            next <- read
             i <- next match {
               case CharacterToken(c, _) => swallow.andThen(done(c.toInt))
               case ControlSequenceToken(name, _) if name.size == 1 => swallow.andThen(done(name(0).toInt))
@@ -211,11 +211,20 @@ trait TeXNumbers {
       _ <- optSpace
     } yield i
 
-  val number: Processor[Int] =
-    for {
+  def number: Processor[Int] = {
+    val oldmacros = env.macrosOnly
+    env.macrosOnly = true
+    (for {
       sign <- signs()
       i <- unsignedNumber
-    } yield sign * i
+    } yield {
+      env.macrosOnly = oldmacros
+      sign * i
+    }) recoverWith { e =>
+      env.macrosOnly = oldmacros
+      throwError(e)
+    }
+  }
 
   object CharDef {
     def unapply(name: String): Option[Char] = env.css(name) match {
