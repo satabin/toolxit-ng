@@ -58,8 +58,6 @@ object Dimension {
 
   def ofCicero(cc: Double): Dimension = ofDidotPoint(cc * 12f)
 
-  def \(name: String) = 0
-
 }
 
 case class FilDimension(factor: Double, fil: FilUnit)

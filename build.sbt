@@ -12,7 +12,8 @@ lazy val globalSettings = scalariform ++ Seq(
   resolvers += "Sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/",
   scalaVersion := "2.12.1",
   scalacOptions ++= Seq("-deprecation", "-feature"),
-  libraryDependencies += "com.lihaoyi" %% "sourcecode" % "0.1.3")
+  libraryDependencies += "com.lihaoyi" %% "sourcecode" % "0.1.3",
+  libraryDependencies += "com.beachape" %% "enumeratum" % "1.5.10")
 
 lazy val toolxit = project.in(file("."))
   .settings(

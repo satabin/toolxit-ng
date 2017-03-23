@@ -262,6 +262,9 @@ sealed abstract class Iteratee[Elt, +A](implicit name: sourcecode.Enclosing, cla
     })
   }
 
+  def andThen[B](i: => Iteratee[Elt, B]): Iteratee[Elt, B] =
+    this.flatMap(_ => i)
+
   def withFilter(f: A => Boolean): Iteratee[Elt, A] =
     this match {
       case Done(v) =>

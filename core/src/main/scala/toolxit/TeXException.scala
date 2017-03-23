@@ -32,4 +32,7 @@ class TeXInternalException(msg: String, inner: Throwable) extends Exception(msg,
 
 class ControlSequenceException(msg: String) extends TeXException(msg)
 
-case class EOIException(line: Int, column: Int) extends Exception
+case class EOIException(line: Int, column: Int) extends Exception {
+  def this(p: Position) =
+    this(p.line, p.column)
+}

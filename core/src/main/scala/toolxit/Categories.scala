@@ -15,49 +15,33 @@
 */
 package toolxit
 
-import gnieh.pp._
+import enumeratum.values._
 
 /** A category code to which a character is associated.
  *
  *  @author Lucas Satabin
  *
  */
-object Category extends Enumeration {
+sealed abstract class Category(val value: Int) extends IntEnumEntry
+object Category extends IntEnum[Category] {
 
-  val ESCAPE_CHARACTER = Value(0) // 0
-  val BEGINNING_OF_GROUP = Value(1) // 1
-  val END_OF_GROUP = Value(2) // 2
-  val MATH_SHIFT = Value(3) // 3
-  val ALIGNMENT_TAB = Value(4) // 4
-  val END_OF_LINE = Value(5) // 5
-  val PARAMETER = Value(6) // 6
-  val SUPERSCRIPT = Value(7) // 7
-  val SUBSCRIPT = Value(8) // 8
-  val IGNORED_CHARACTER = Value(9) // 9
-  val SPACE = Value(10) // 10
-  val LETTER = Value(11) // 11
-  val OTHER_CHARACTER = Value(12) // 12
-  val ACTIVE_CHARACTER = Value(13) // 13
-  val COMMENT_CHARACTER = Value(14) // 14
-  val INVALID_CHARACTER = Value(15) // 15
+  val values = findValues
 
-  def debug(cat: Value): Doc = cat match {
-    case ESCAPE_CHARACTER   => "ESCAPE_CHARACTER(" :: 0 :: ")"
-    case BEGINNING_OF_GROUP => "BEGINNING_OF_GROUP(" :: 1 :: ")"
-    case END_OF_GROUP       => "END_OF_GROUP(" :: 2 :: ")"
-    case MATH_SHIFT         => "MATH_SHIFT(" :: 3 :: ")"
-    case ALIGNMENT_TAB      => "ALIGNMENT_TAB(" :: 4 :: ")"
-    case END_OF_LINE        => "END_OF_LINE(" :: 5 :: ")"
-    case PARAMETER          => "PARAMETER(" :: 6 :: ")"
-    case SUPERSCRIPT        => "SUPERSCRIPT(" :: 7 :: ")"
-    case SUBSCRIPT          => "SUBSCRIPT(" :: 8 :: ")"
-    case IGNORED_CHARACTER  => "IGNORED_CHARACTER(" :: 9 :: ")"
-    case SPACE              => "SPACE(" :: 10 :: ")"
-    case LETTER             => "LETTER(" :: 11 :: ")"
-    case OTHER_CHARACTER    => "OTHER_CHARACTER(" :: 12 :: ")"
-    case ACTIVE_CHARACTER   => "ACTIVE_CHARACTER(" :: 13 :: ")"
-    case COMMENT_CHARACTER  => "COMMENT_CHARACTER(" :: 14 :: ")"
-    case INVALID_CHARACTER  => "INVALID_CHARACTER(" :: 15 :: ")"
-  }
+  case object ESCAPE_CHARACTER extends Category(0) // 0
+  case object BEGINNING_OF_GROUP extends Category(1) // 1
+  case object END_OF_GROUP extends Category(2) // 2
+  case object MATH_SHIFT extends Category(3) // 3
+  case object ALIGNMENT_TAB extends Category(4) // 4
+  case object END_OF_LINE extends Category(5) // 5
+  case object PARAMETER extends Category(6) // 6
+  case object SUPERSCRIPT extends Category(7) // 7
+  case object SUBSCRIPT extends Category(8) // 8
+  case object IGNORED_CHARACTER extends Category(9) // 9
+  case object SPACE extends Category(10) // 10
+  case object LETTER extends Category(11) // 11
+  case object OTHER_CHARACTER extends Category(12) // 12
+  case object ACTIVE_CHARACTER extends Category(13) // 13
+  case object COMMENT_CHARACTER extends Category(14) // 14
+  case object INVALID_CHARACTER extends Category(15) // 15
 
 }

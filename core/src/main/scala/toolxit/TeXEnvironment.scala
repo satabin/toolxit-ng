@@ -19,10 +19,7 @@ import dimen._
 
 import util._
 
-import scala.collection.mutable.{
-  Map,
-  Stack
-}
+import scala.collection.mutable.Map
 
 import scala.annotation.tailrec
 
@@ -52,10 +49,13 @@ class TeXEnvironment(_jobname: String) {
   private class TeXRegisters(val parent: Option[TeXRegisters]) {
 
     // the map from character to category code
-    val categories = Map.empty[Char, Category.Value]
+    val categories = Map.empty[Char, Category]
 
     // the map from cs name to its internal representation
     val controlSequences = Map.empty[String, ControlSequence]
+
+    // the names of all control sequences up to the root
+    def allConreolSequences: Set[String] = parent.map(_.allConreolSequences).getOrElse(Set.empty[String]) ++ controlSequences.keySet
 
     // local values of the different registers
     val counters = Map.empty[Byte, Int]
@@ -66,6 +66,9 @@ class TeXEnvironment(_jobname: String) {
     // glues and muglues are the triple (dimension, stretch, shrink)
     val glues = Map.empty[Byte, Glue]
     val muglues = Map.empty[Byte, Muglue]
+    val fonts = Map.empty[Byte, Int]
+
+    val integerParameters = Map.empty[String, Int]
     // TODO other register types
 
   }
@@ -110,8 +113,19 @@ class TeXEnvironment(_jobname: String) {
    *
    *  @group Globals
    */
-  val inputs: Stack[LineReader] =
-    Stack.empty[LineReader]
+  private var inputs: List[LineReader] =
+    List.empty[LineReader]
+
+  def pushInput(reader: LineReader): Unit =
+    inputs = reader :: inputs
+
+  def popInput(): Option[LineReader] = inputs match {
+    case h :: t =>
+      inputs = t
+      Some(h)
+    case _ =>
+      None
+  }
 
   /** Indicates whether an `\endinput` control sequence has been encountered.
    *
@@ -170,11 +184,28 @@ class TeXEnvironment(_jobname: String) {
    */
   object category {
 
+    object global {
+      def apply(char: Char): Category =
+        root.categories.get(char) match {
+          case Some(c) =>
+            c
+          case None =>
+            // if not specified otherwise, UTF-8 letters are in category `letter`
+            if (char.isLetter)
+              Category.LETTER
+            else
+              Category.OTHER_CHARACTER
+        }
+
+      def update(char: Char, category: Category): Unit =
+        root.categories(char) = category
+
+    }
     /** Returns the category of the given character in the current environment.
      *  This category may vary over time, so this method must be called every time
      *  one needs to determine the category of a character.
      */
-    def apply(char: Char): Category.Value =
+    def apply(char: Char): Category =
       lookupRegister(char, (_.categories), locals) match {
         case Some(c) =>
           c
@@ -189,8 +220,13 @@ class TeXEnvironment(_jobname: String) {
     /** Sets the category of the given character. This setting is scoped
      *  to the current group only, and will be discarded when leaving the group.
      */
-    def update(char: Char, category: Category.Value): Unit =
+    def update(char: Char, category: Category): Unit =
       locals.categories(char) = category
+
+    def update(char: Char, global: Boolean, category: Category): Unit = {
+      val cats = if (global) root.categories else locals.categories
+      cats(char) = category
+    }
 
   }
 
@@ -239,17 +275,10 @@ class TeXEnvironment(_jobname: String) {
      */
     def update(name: String, cs: ControlSequence) =
       locals.controlSequences(name) = cs
-  }
 
-  /** A register is either in this environment or in one parent.
-   *
-   *  @group Registers
-   */
-  trait Register[T] {
-
-    def apply(number: Byte): Option[T]
-
-    def update(number: Byte, value: T): Unit
+    /** Returns the name of all control sequences defined in the current context. */
+    def names: Set[String] =
+      locals.allConreolSequences
 
   }
 
@@ -257,37 +286,94 @@ class TeXEnvironment(_jobname: String) {
    *
    *  @group Registers
    */
-  object count extends Register[Int] {
+  object count {
+
+    object global {
+      def apply(number: Byte): Int =
+        root.counters.getOrElse(number, 0)
+
+      def update(number: Byte, i: Int): Unit =
+        root.counters(number) = i
+    }
 
     /** Finds and returns the count register value identified by its register number
      *  in the current environment.
      *  The default value of a count register is `0`.
      */
-    def apply(number: Byte): Option[Int] =
-      lookupRegister(number, (_.counters), locals)
+    def apply(number: Byte): Int =
+      lookupRegister(number, (_.counters), locals).getOrElse(0)
 
     /** Sets the value of the count register in the current environment.
-     *  This value will be reseted to the previous value when leaving the current group.
+     *  This value will be reset to the previous value when leaving the current group.
      */
     def update(number: Byte, value: Int) =
       locals.counters(number) = value
+
+    def update(number: Byte, mode: AssignmentMode, global: Boolean, value: Int): Unit = {
+      val cnts = if (global) root.counters else locals.counters
+      mode match {
+        case AssignmentMode.Set      => cnts(number) = value
+        case AssignmentMode.Advance  => cnts(number) = cnts.getOrElse(number, 0) + value
+        case AssignmentMode.Multiply => cnts(number) = cnts.getOrElse(number, 0) * value
+        case AssignmentMode.Divide   => cnts(number) = cnts.getOrElse(number, 0) / value
+      }
+    }
+
+  }
+
+  /** Exposes integer parameter register management functions.
+   *
+   *  @group Registers
+   */
+  object integerParameter {
+
+    object global {
+      def apply(name: String): Int =
+        root.integerParameters.getOrElse(name, 0)
+
+      def update(name: String, i: Int): Unit =
+        root.integerParameters(name) = i
+    }
+
+    /** Finds and returns the integer parameter register value identified by its register number
+     *  in the current environment.
+     *  The default value of a count register is `0`.
+     */
+    def apply(name: String): Int =
+      lookupRegister(name, (_.integerParameters), locals).getOrElse(0)
+
+    /** Sets the value of the integer parameter register in the current environment.
+     *  This value will be reset to the previous value when leaving the current group.
+     */
+    def update(name: String, value: Int) =
+      locals.integerParameters(name) = value
+
+    def update(name: String, mode: AssignmentMode, global: Boolean, value: Int): Unit = {
+      val params = if (global) root.integerParameters else locals.integerParameters
+      mode match {
+        case AssignmentMode.Set      => params(name) = value
+        case AssignmentMode.Advance  => params(name) = params.getOrElse(name, 0) + value
+        case AssignmentMode.Multiply => params(name) = params.getOrElse(name, 0) * value
+        case AssignmentMode.Divide   => params(name) = params.getOrElse(name, 0) / value
+      }
+    }
   }
 
   /** Exposes dimension register management functions.
    *
    *  @group Registers
    */
-  object dimen extends Register[Dimension] {
+  object dimen {
 
     /** Finds and returns the dimension register value identified by its register number
      *  in the current environment.
      *  The default value of a dimension register is `0 pt`.
      */
-    def apply(number: Byte): Option[Dimension] =
-      lookupRegister(number, (_.dimensions), locals)
+    def apply(number: Byte): Dimension =
+      lookupRegister(number, (_.dimensions), locals).getOrElse(ZeroDimen)
 
     /** Sets the value of the dimension register in the current environment.
-     *  This value will be reseted to the previous value when leaving the current group.
+     *  This value will be reset to the previous value when leaving the current group.
      */
     def update(number: Byte, value: Dimension) =
       locals.dimensions(number) = value
@@ -297,17 +383,17 @@ class TeXEnvironment(_jobname: String) {
    *
    *  @group Registers
    */
-  object skip extends Register[Glue] {
+  object skip {
 
     /** Finds and returns the glue register value identified by its register number
      *  in the current environment.
      *  The default value of a glue register is `0 pt +0 pt -0 pt`.
      */
-    def apply(number: Byte): Option[Glue] =
-      lookupRegister(number, (_.glues), locals)
+    def apply(number: Byte): Glue =
+      lookupRegister(number, (_.glues), locals).getOrElse(ZeroGlue)
 
     /** Sets the value of the count register in the current environment.
-     *  This value will be reseted to the previous value when leaving the current group.
+     *  This value will be reset to the previous value when leaving the current group.
      */
     def update(number: Byte, value: Glue): Unit =
       locals.glues(number) = value
@@ -317,20 +403,40 @@ class TeXEnvironment(_jobname: String) {
    *
    *  @group Registers
    */
-  object muskip extends Register[Muglue] {
+  object muskip {
 
     /** Finds and returns the muglue register value identified by its register number
      *  in the current environment.
      *  The default value of a muglue register is `0 pt +0 pt -0 pt`.
      */
-    def apply(number: Byte): Option[Muglue] =
-      lookupRegister(number, (_.muglues), locals)
+    def apply(number: Byte): Muglue =
+      lookupRegister(number, (_.muglues), locals).getOrElse(ZeroMuglue)
 
     /** Sets the value of the count register in the current environment.
-     *  This value will be reseted to the previous value when leaving the current group.
+     *  This value will be reset to the previous value when leaving the current group.
      */
     def update(number: Byte, value: Muglue) =
       locals.muglues(number) = value
+  }
+
+  /** Exposes font register management functions.
+   *
+   *  @group Registers
+   */
+  object font {
+
+    /** Finds and returns the font register value identified by its register number
+     *  in the current environment.
+     *  The default value of a count register is `0`.
+     */
+    def apply(number: Byte): Option[Int] =
+      lookupRegister(number, (_.fonts), locals)
+
+    /** Sets the value of the font register in the current environment.
+     *  This value will be reset to the previous value when leaving the current group.
+     */
+    def update(number: Byte, value: Int) =
+      locals.fonts(number) = value
   }
 
   /** The current escape character.
@@ -339,6 +445,12 @@ class TeXEnvironment(_jobname: String) {
    */
   var escapechar: Char =
     '\\'
+
+  /** The special integers and internal integers.
+   *
+   *  @group Globals
+   */
+  val integers = Map.empty[String, Int]
 
   // ==== bunch of useful extractors ====
 
@@ -577,7 +689,6 @@ class TeXEnvironment(_jobname: String) {
   // TODO remove later this is not the case by default but is defined in the format
   category('{') = Category.BEGINNING_OF_GROUP
   category('}') = Category.END_OF_GROUP
-  category('^') = Category.SUPERSCRIPT
 
 }
 

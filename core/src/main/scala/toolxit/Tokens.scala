@@ -17,11 +17,8 @@ package toolxit
 
 import util.Positional
 
-import gnieh.pp._
-
 /** TeX works with a token stream */
 sealed trait Token extends Positional {
-  def debug: Doc
   def toString(env: TeXEnvironment): String
 }
 
@@ -46,8 +43,7 @@ sealed trait Token extends Positional {
  *  @author Lucas Satabin
  *
  */
-case class CharacterToken(value: Char, category: Category.Value) extends Token {
-  lazy val debug = "Character(" :: value :: ")[" :: Category.debug(category) :: "]"
+case class CharacterToken(value: Char, category: Category) extends Token {
   def toString(env: TeXEnvironment) = value.toString
 }
 
@@ -56,7 +52,6 @@ case class CharacterToken(value: Char, category: Category.Value) extends Token {
  *  @author Lucas Satabin
  */
 case class ControlSequenceToken(name: String, active: Boolean = false) extends Token {
-  lazy val debug = "ControlSequence(" :: name :: ")"
   def toString(env: TeXEnvironment) = f"${env.escapechar}$name"
 }
 
@@ -66,7 +61,6 @@ case class ControlSequenceToken(name: String, active: Boolean = false) extends T
  *  @author Lucas Satabin
  */
 case class ParameterToken(number: Int) extends Token {
-  lazy val debug = "Parameter(" :: number :: ")"
   def toString(env: TeXEnvironment) = f"#$number"
 }
 
@@ -76,12 +70,5 @@ case class ParameterToken(number: Int) extends Token {
  *  @author Lucas Satabin
  */
 case class GroupToken(open: Token, inner: List[Token], close: Token) extends Token {
-  lazy val debug = group {
-    nest(1) {
-      "Group(" :: inner.foldRight(empty) { (token, acc) =>
-        token.debug :: "," :|: acc
-      }
-    } :: ")"
-  }
   def toString(env: TeXEnvironment) = f"$open${inner.reverseMap(_.toString(env)).mkString}"
 }

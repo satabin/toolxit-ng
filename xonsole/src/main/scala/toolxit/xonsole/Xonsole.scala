@@ -23,6 +23,7 @@ import stomach._
 
 import org.jline.terminal.TerminalBuilder
 import org.jline.reader._
+import org.jline.reader.impl.DefaultParser
 
 import java.nio.file.Paths
 import java.io.{
@@ -43,17 +44,24 @@ import scala.annotation.tailrec
 class Xonsole {
 
   def open(): Unit = {
+
+    val environment = new TeXEnvironment("xonsole")
+
     val terminal = TerminalBuilder.builder().build()
+
+    // \ is not an escape character
+    val parser = new DefaultParser
+    parser.setEscapeChars(Array.empty[Char])
 
     val reader = LineReaderBuilder.builder()
       .terminal(terminal)
+      .parser(parser)
+      .completer(new TeXCompleter(environment))
       .build()
     // TeX makes heavy use of \ which should not be expanded as event
     reader.setOpt(LineReader.Option.DISABLE_EVENT_EXPANSION)
 
     reader.setVariable(LineReader.HISTORY_FILE, Paths.get(Properties.userHome, ".xonsole_history"));
-
-    val environment = new TeXEnvironment("xonsole")
 
     val eyes = new TeXEyes(environment)
 

@@ -22,17 +22,26 @@ import java.io.PrintWriter
 
 class TeXStomach(env: TeXEnvironment, log: PrintWriter, out: PrintWriter) extends Iteratees[Command] {
 
-  lazy val process: Iteratee[Command, Unit] = headOption.flatMap {
-    case Some(cs @ CControlSequence("end")) =>
+  type Processor[+T] = Iteratee[Command, T]
+
+  lazy val process: Processor[Unit] = headOption.flatMap {
+    case Some(cs @ CS("end")) =>
       throwError(EndException)
     case Some(v) =>
       v match {
-        case CTypeset(c)                 => out.print(c)
-        case cs @ CControlSequence(name) => log.println(f"${cs.pos} Unknown control sequence $name")
+        case Typeset(c)        => out.print(c)
+        case Assignment(assgn) => assign(assgn)
+        case cs @ CS(name)     => log.println(f"${cs.pos} Unknown control sequence \\$name")
       }
       process
     case None =>
       Done(())
+  }
+
+  def assign(assignment: Assignment): Unit = assignment match {
+    case CounterAssignment(cnt, v, mode, global)           => env.count(cnt, mode, global) = v
+    case IntegerParameterAssignment(name, v, mode, global) => env.integerParameter(name, mode, global) = v
+    case CategoryAssignment(char, cat, global)             => env.category(char, global) = cat
   }
 
 }

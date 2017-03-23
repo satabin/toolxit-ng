@@ -18,6 +18,47 @@ package toolxit
 object Primitives {
   /** Set of all primitive control sequence names that shall be expanded */
   val expandablePrimitives = Set(
+    // assignments
+    "global",
+    "long",
+    "outer",
+    // macro definition
+    "def",
+    "gdef",
+    "edef",
+    "xdef",
+    // let assignments
+    "let",
+    "futurelet",
+    // shorthand definitions
+    "chardef",
+    "mathchardef",
+    // register definitions
+    "countdef",
+    "dimendef",
+    "skipdef",
+    "muskipdef",
+    "toksdef",
+    // take it easy
+    "relax",
+    // simple assignments
+    "read",
+    "setbox",
+    "font",
+    // arithmetic
+    "advance",
+    "multiply",
+    "divide",
+    // integer variable
+    "count",
+    // dimension variable
+    "dimen",
+    // glue variable
+    "skip",
+    // muglue variable
+    "muskip",
+    // token variable
+    "toks",
     // all if primitive control sequences
     "ifnum",
     "ifdim",
@@ -127,6 +168,13 @@ object Primitives {
     "errorcontextlines" // (maximum extra context shown when errors occur)
   )
 
+  object IntegerParameter {
+    def unapply(token: Token): Option[String] = token match {
+      case ControlSequenceToken(name, _) if integerParameter.contains(name) => Some(name)
+      case _ => None
+    }
+  }
+
   val dimenParameter = Set(
     "hfuzz", // (maximum overrun before overfull hbox messages occur)
     "vfuzz", // (maximum overrun before overfull vbox messages occur)
@@ -151,6 +199,13 @@ object Primitives {
     "voffset" // (vertical offset in \shipout)
   )
 
+  object DimensionParameter {
+    def unapply(token: Token): Option[String] = token match {
+      case ControlSequenceToken(name, _) if dimenParameter.contains(name) => Some(name)
+      case _ => None
+    }
+  }
+
   val glueParameter = Set(
     "baselineskip", // (desired glue between baselines)
     "lineskip", // (interline glue if \baselineskip isn’t feasible)
@@ -169,11 +224,25 @@ object Primitives {
     "parfillskip" // (additional \rightskip at end of paragraphs)
   )
 
+  object GlueParameter {
+    def unapply(token: Token): Option[String] = token match {
+      case ControlSequenceToken(name, _) if glueParameter.contains(name) => Some(name)
+      case _ => None
+    }
+  }
+
   val muglueParameter = Set(
     "thinmuskip", // (thin space in math formulas)
     "medmuskip", // (medium space in math formulas)
     "thickmuskip" // (thick space in math formulas)
   )
+
+  object MuglueParameter {
+    def unapply(token: Token): Option[String] = token match {
+      case ControlSequenceToken(name, _) if muglueParameter.contains(name) => Some(name)
+      case _ => None
+    }
+  }
 
   val tokenParameter = Set(
     "output", // (the user’s output routine)
@@ -187,12 +256,69 @@ object Primitives {
     "errhelp" // (tokens that supplement an \errmessage)
   )
 
+  object TokenParameter {
+    def unapply(token: Token): Option[String] = token match {
+      case ControlSequenceToken(name, _) if tokenParameter.contains(name) => Some(name)
+      case _ => None
+    }
+  }
+
+  val internalInteger = Set(
+    "lastpenalty",
+    "count",
+    "parshape",
+    "inputlineno",
+    "hyphenchar",
+    "skewchar",
+    "badness"
+  )
+
+  object InternalInteger {
+    def unapply(token: Token): Option[String] = token match {
+      case ControlSequenceToken(name, _) if internalInteger.contains(name) => Some(name)
+      case _ => None
+    }
+  }
+
+  val specialInteger = Set(
+    "spacefactor",
+    "prevgraf",
+    "deadcycles",
+    "insertpenalties"
+  )
+
+  object SpecialInteger {
+    def unapply(token: Token): Option[String] = token match {
+      case ControlSequenceToken(name, _) if specialInteger.contains(name) => Some(name)
+      case _ => None
+    }
+  }
+
+  val codename = Set(
+    "catcode",
+    "mathcode",
+    "lccode",
+    "uccode",
+    "sfcode",
+    "delcode"
+  )
+
+  object Codename {
+    def unapply(token: Token): Option[String] = token match {
+      case ControlSequenceToken(name, _) if codename.contains(name) => Some(name)
+      case _ => None
+    }
+  }
+
   val all =
     expandablePrimitives ++
       integerParameter ++
       dimenParameter ++
       glueParameter ++
       muglueParameter ++
-      tokenParameter
+      tokenParameter ++
+      specialInteger ++
+      internalInteger ++
+      codename
 
 }

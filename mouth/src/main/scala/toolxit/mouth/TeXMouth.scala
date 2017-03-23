@@ -46,7 +46,9 @@ class TeXMouth(val env: TeXEnvironment)
     extends Iteratees[Token]
     with TeXMacros
     with TeXNumbers
-    with TeXDimensions {
+    with TeXDimensions
+    with TeXFonts
+    with TeXAssignments {
 
   type Processor[T] = Iteratee[Token, T]
 
@@ -62,7 +64,7 @@ class TeXMouth(val env: TeXEnvironment)
   def openInput(name: String): Processor[Unit] =
     try {
       val reader = new LineReader(new FileReader(name))
-      env.inputs.push(reader)
+      env.pushInput(reader)
       noop
     } catch {
       case e: Exception =>
@@ -186,7 +188,7 @@ class TeXMouth(val env: TeXEnvironment)
               // the command is simply to type set some character.
               for {
                 () <- swallow
-                ts <- done(CTypeset(c).atPos(char.pos))
+                ts <- done(Typeset(c).atPos(char.pos))
               } yield ts
             }
 
@@ -203,10 +205,18 @@ class TeXMouth(val env: TeXEnvironment)
               c <- command
             } yield c
 
+          case tok @ StartsAssignment() =>
+            // this is an assignment
+            if (long || outer) {
+              throwError(new TeXMouthException(f"Only prefix `\\global' is allowed for assignments", tok.pos))
+            } else {
+              simpleAssignment(global)
+            }
+
           case cs @ ControlSequenceToken(name, _) =>
             for {
               () <- swallow
-              cs <- done(CControlSequence(name).atPos(cs.pos))
+              cs <- done(CS(name).atPos(cs.pos))
             } yield cs
 
           case t =>
@@ -339,7 +349,7 @@ class TeXMouth(val env: TeXEnvironment)
 
   /** Reads zero or more space characters (with category code SPACE). */
   lazy val spaces: Processor[Unit] =
-    read.flatMap {
+    raw.flatMap {
       case CharacterToken(_, Category.SPACE) =>
         for {
           () <- swallow
@@ -354,8 +364,8 @@ class TeXMouth(val env: TeXEnvironment)
    *  <keyword(name)> ::= <space>* <name>
    *  }}}
    */
-  final def keyword(name: String): Processor[List[CharacterToken]] = {
-    def loop(idx: Int, acc: List[CharacterToken]): Processor[List[CharacterToken]] =
+  final def keyword(name: String, optional: Boolean): Processor[Unit] = {
+    def loop(idx: Int, acc: List[CharacterToken]): Processor[Unit] =
       if (idx >= name.size) {
         done(acc.reverse)
       } else {
@@ -363,10 +373,14 @@ class TeXMouth(val env: TeXEnvironment)
           case char @ CharacterToken(c, _) if c.toLower == name.charAt(idx).toLower =>
             for {
               () <- swallow
-              l <- loop(idx + 1, char :: acc)
-            } yield l
+              () <- loop(idx + 1, char :: acc)
+            } yield ()
           case t =>
-            throwError(new TeXMouthException(f"Expected ${name.charAt(idx)} but $t found", t.pos))
+            if (optional)
+              // push back what we read
+              pushback(acc)
+            else
+              throwError(new TeXMouthException(f"Expected ${name.charAt(idx)} but $t found", t.pos))
         }
       }
     for {

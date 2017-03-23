@@ -19,6 +19,8 @@ import dimen._
 
 import util.Positional
 
+import enumeratum._
+
 /** A TeX command returned by the parser.
  *  The calling context may decide to interpret as it wishes the commands.
  *  Basically, the parser returns a character typeset command or a control sequence.
@@ -39,13 +41,37 @@ import util.Positional
 sealed trait Command extends Positional
 
 /** The most basic command is the typesetting of a character */
-case class CTypeset(what: Char) extends Command
+case class Typeset(what: Char) extends Command
 
 /** A control sequence that was not interpreted by the parser.
- *  It is probably followed by its arguments in the the input stream.
- *  The caller is responsible for eating undesired tokens from the stream
- *  after this control sequence even if it is ignored.
  *
  *  @author Lucas Satabin
  */
-case class CControlSequence(name: String) extends Command
+case class CS(name: String) extends Command
+
+sealed trait Assignment extends Command
+object Assignment {
+  def unapply(cmd: Command): Option[Assignment] =
+    cmd match {
+      case assgn: Assignment => Some(assgn)
+      case _                 => None
+    }
+}
+
+sealed trait AssignmentMode extends EnumEntry
+object AssignmentMode extends Enum[AssignmentMode] {
+  val values = findValues
+  case object Set extends AssignmentMode
+  case object Advance extends AssignmentMode
+  case object Multiply extends AssignmentMode
+  case object Divide extends AssignmentMode
+}
+
+/** An integer parameter assignment command. */
+case class IntegerParameterAssignment(name: String, value: Int, mode: AssignmentMode, global: Boolean) extends Assignment
+
+/** A counter assignment command. */
+case class CounterAssignment(id: Byte, value: Int, mode: AssignmentMode, global: Boolean) extends Assignment
+
+/** A character category assignment */
+case class CategoryAssignment(c: Char, cat: Category, globa: Boolean) extends Assignment
