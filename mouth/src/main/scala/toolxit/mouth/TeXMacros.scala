@@ -123,7 +123,7 @@ trait TeXMacros {
       val oldrepl = env.inReplacement
       env.expanding = expanded
       env.inReplacement = true
-      group(true, false, true).map {
+      group(true, false, true, true).map {
         case GroupToken(_, tokens, _) =>
           if (appendBrace)
             CharacterToken('{', Category.BEGINNING_OF_GROUP) :: tokens
@@ -170,11 +170,16 @@ trait TeXMacros {
       case Some(stop) =>
         // we must read until the stop token has been reached
         // if the macro was declared as long, then \par is allowed.
-        raw.flatMap {
+        read.flatMap {
           case tok @ ControlSequenceToken(name, _) if env.css.isOuter(name) =>
-            throwError(new TeXMouthException("Outer macros are not authorized in macro parameterf", tok.pos))
+            throwError(new TeXMouthException("Outer macros are not authorized in macro parameter", tok.pos))
           case tok @ ControlSequenceToken("par", _) if !long =>
             throwError(new TeXMouthException("Runaway argument. new paragraph is not allowed in the parameter list", tok.pos))
+          case CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
+            for {
+              g <- group(true, long, false, false)
+              p <- loop(parameters, Some(stop), g :: localAcc, acc)
+            } yield p
           case tok if tok == stop =>
             for {
               () <- swallow
@@ -195,13 +200,20 @@ trait TeXMacros {
               case Nil | ParameterToken(_) :: _ =>
                 for {
                   // an undelimited parameter
-                  t <- raw
-                  () <- swallow
-                  res <- loop(rest, None, Nil, List(t) :: acc)
+                  t <- read.flatMap {
+                    case CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
+                      for (GroupToken(_, tokens, _) <- group(true, long, false, false))
+                        yield tokens
+                    case tok @ ControlSequenceToken(name, _) if env.css.isOuter(name) =>
+                      throwError(new TeXMouthException("Outer macros are not authorized in macro parameter", tok.pos))
+                    case tok @ ControlSequenceToken("par", _) if !long =>
+                      throwError(new TeXMouthException("Runaway argument. new paragraph is not allowed in the parameter list", tok.pos))
+                    case tok => swallow.andThen(done(List(tok)))
+                  }
+                  res <- loop(rest, None, Nil, t :: acc)
                 } yield res
               case token :: rest =>
                 for {
-                  () <- swallow
                   p <- loop(rest, Some(token), Nil, acc)
                 } yield p
             }
@@ -226,14 +238,19 @@ trait TeXMacros {
           // consume the macro name
           () <- swallow
           // parse the arguments
-          args <- arguments(long, parameters)
+          args <- withExpansion(false)(arguments(long, parameters))
           // we then push back the replacement text onto the token stack
           // replacing as it goes the parameters by the parsed ones.
           args1 = replacement.flatMap {
             case ParameterToken(i) =>
               // by construction (with the parser) the parameter exists
               if (env.debugPositions)
-                args(i - 1).map(a => a.atPos(pos, Some(a.pos)))
+                args(i - 1).flatMap {
+                  case GroupToken(_, tokens, _) =>
+                    tokens.map(a => a.atPos(pos, Some(a.pos)))
+                  case a =>
+                    List(a.atPos(pos, Some(a.pos)))
+                }
               else
                 args(i - 1)
             case token =>

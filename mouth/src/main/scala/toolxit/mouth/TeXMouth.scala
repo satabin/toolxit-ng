@@ -91,6 +91,18 @@ class TeXMouth(val env: TeXEnvironment)
       }
   }
 
+  def withExpansion[T](expand: Boolean)(p: Processor[T]): Processor[T] = {
+    val oldexp = env.expanding
+    env.expanding = expand
+    p map { v =>
+      env.expanding = oldexp
+      v
+    } recoverWith { e =>
+      env.expanding = oldexp
+      throwError(e)
+    }
+  }
+
   /** Returns the next unexpanded token */
   lazy val raw: Processor[Token] = peek.flatMap {
     case Some(t) => done(t)
@@ -175,7 +187,7 @@ class TeXMouth(val env: TeXEnvironment)
 
           case CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
             for {
-              GroupToken(_, tokens, _) <- group(true, true, false)
+              GroupToken(_, tokens, _) <- group(true, true, true, false)
               () <- pushback(tokens)
               c <- command
             } yield c
@@ -267,7 +279,7 @@ class TeXMouth(val env: TeXEnvironment)
    *  this group.
    *  Typically, when parsing a group as a replacement text of a macro definition, they are not allowed.
    */
-  def group(reverted: Boolean, allowOuter: Boolean, withParams: Boolean): Processor[GroupToken] = {
+  def group(reverted: Boolean, allowOuter: Boolean, allowPar: Boolean, withParams: Boolean): Processor[GroupToken] = {
     def loop(level: Int, open: Token, acc: List[Token]): Processor[GroupToken] = read.flatMap {
       case tok @ CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
         for {
@@ -292,6 +304,8 @@ class TeXMouth(val env: TeXEnvironment)
           g <- loop(level - 1, open, tok :: acc)
         } yield g
 
+      case tok @ ControlSequenceToken("par", _) if !allowPar =>
+        throwError(new TeXMouthException("`\\par` is not allowed in parameter text", tok.pos))
       case tok @ ControlSequenceToken(name, _) if !allowOuter && env.css.isOuter(name) =>
         // macro declared as `outer' are not allowed in the parameter text
         throwError(new TeXMouthException(f"Macro $name declared as `\\outer` is not allowed in parameter text", tok.pos))
