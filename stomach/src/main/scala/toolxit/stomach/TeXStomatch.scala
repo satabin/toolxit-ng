@@ -30,8 +30,9 @@ class TeXStomach(env: TeXEnvironment, log: PrintWriter, out: PrintWriter) extend
     case Some(v) =>
       v match {
         case Typeset(c)        => out.print(c)
+        case Par               => out.print("\n\n")
         case Assignment(assgn) => assign(assgn)
-        case cs @ CS(name)     => log.println(f"${cs.pos} Unknown control sequence \\$name")
+        case cs @ CS(name)     => log.println(f"${cs.pos} Undefined control sequence \\$name")
       }
       process
     case None =>

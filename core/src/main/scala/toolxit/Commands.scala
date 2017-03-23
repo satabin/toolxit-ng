@@ -43,6 +43,9 @@ sealed trait Command extends Positional
 /** The most basic command is the typesetting of a character */
 case class Typeset(what: Char) extends Command
 
+/** A new paragraph command. */
+case object Par extends Command
+
 /** A control sequence that was not interpreted by the parser.
  *
  *  @author Lucas Satabin

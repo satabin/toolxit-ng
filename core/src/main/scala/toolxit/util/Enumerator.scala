@@ -25,10 +25,11 @@ import scala.util.{
 }
 
 import java.io.{
-  Closeable,
   File,
+  Reader,
   FileReader,
-  BufferedReader
+  BufferedReader,
+  InputStreamReader
 }
 
 /** Set of standard enumerators. */
@@ -70,33 +71,40 @@ object Enumerator {
     case i             => Try(i)
   }
 
-  /** Feeds the iteratee with the string content of a file, character by character. */
-  def textFile[A](file: File, chunkSize: Int = 1024): Enumerator[Char, A] = {
+  /** Feeds the iteratee with the string content of a reader, character by character. */
+  def reader[A](reader: Reader, chunkSize: Int = 1024): Enumerator[(Char, Int, Int), A] = {
     case Cont(None, k) =>
-      def loop(reader: BufferedReader, k: K[Char, A], p: Array[Char]): Try[Iteratee[Char, A]] =
+      def loop(line: Int, column: Int, reader: BufferedReader, k: K[(Char, Int, Int), A], p: Array[Char]): Try[Iteratee[(Char, Int, Int), A]] =
         Try(reader.read(p, 0, chunkSize)) match {
-          case Success(-1)           => feedI(k, Eos(None))
-          case Success(n)            => feedI(k, Chunk(p.take(n))).flatMap(check(reader, p))
+          case Success(-1) => feedI(k, Eos(None))
+          case Success(n) =>
+            val (l, c, chars) = p.take(n).foldLeft((line, column, Seq.empty[(Char, Int, Int)])) {
+              case ((line, column, chars), '\n') =>
+                (line + 1, 1, chars :+ ('\n', line, column))
+              case ((line, column, chars), c) =>
+                (line, column + 1, chars :+ (c, line, column))
+            }
+            feedI(k, Chunk(chars)).flatMap(check(l, c, reader, p))
           case Failure(e: Exception) => feedI(k, Eos(Some(e)))
           case Failure(t)            => throw t
         }
-      def check(reader: BufferedReader, p: Array[Char])(it: Iteratee[Char, A]) = it match {
-        case Cont(None, k) => loop(reader, k, p)
+      def check(line: Int, column: Int, reader: BufferedReader, p: Array[Char])(it: Iteratee[(Char, Int, Int), A]) = it match {
+        case Cont(None, k) => loop(line, column, reader, k, p)
         case i             => Try(i)
       }
-      Try(new BufferedReader(new FileReader(file), chunkSize)) match {
-        case Success(reader) =>
-          for {
-            r <- loop(reader, k, Array.ofDim[Char](chunkSize))
-            _ <- Try(Try(reader.close).getOrElse(Unit))
-          } yield r
-        case Failure(t: Exception) =>
-          feedI(k, Eos(Some(t)))
-        case Failure(t) =>
-          // it is porbably a JVM error
-          throw t
-      }
+      for {
+        r <- loop(1, 1, new BufferedReader(reader, chunkSize), k, Array.ofDim[Char](chunkSize))
+        _ <- Try(Try(reader.close).getOrElse(Unit))
+      } yield r
     case i => Try(i)
   }
+
+  /** Feeds the iteratee with the string content of a file, character by character. */
+  def textFile[A](file: File, chunkSize: Int = 1024): Enumerator[(Char, Int, Int), A] =
+    reader[A](new FileReader(file), chunkSize)
+
+  /** Feeds the iteratee with the string content of a resource, character by character. */
+  def resource[A](name: String, chunkSize: Int = 1024): Enumerator[(Char, Int, Int), A] =
+    reader(new InputStreamReader(getClass.getResourceAsStream(name)), chunkSize)
 
 }

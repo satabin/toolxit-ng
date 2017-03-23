@@ -109,6 +109,13 @@ class TeXEnvironment(_jobname: String) {
   var expanding: Boolean =
     true
 
+  /** Whether we are reading replacement text for macros.
+   *
+   *  @group Globals
+   */
+  var inReplacement: Boolean =
+    false
+
   /** The stack of opened inputs. The current read input stream is on the top.
    *
    *  @group Globals
@@ -686,9 +693,6 @@ class TeXEnvironment(_jobname: String) {
   category('%') = Category.COMMENT_CHARACTER
   category('\\') = Category.ESCAPE_CHARACTER
   category('#') = Category.PARAMETER
-  // TODO remove later this is not the case by default but is defined in the format
-  category('{') = Category.BEGINNING_OF_GROUP
-  category('}') = Category.END_OF_GROUP
 
 }
 

@@ -91,13 +91,6 @@ class TeXMouth(val env: TeXEnvironment)
       }
   }
 
-  /** Execute the given body with the expansion status, and restore the old status afterward */
-  def withExpansion[T](value: Boolean)(it: Processor[T]): Processor[T] = {
-    val old = env.expanding
-    env.expanding = value
-    it.map { v => env.expanding = old; v }.recoverWith { e => env.expanding = old; throwError(e) }
-  }
-
   /** Returns the next unexpanded token */
   lazy val raw: Processor[Token] = peek.flatMap {
     case Some(t) => done(t)
@@ -107,62 +100,69 @@ class TeXMouth(val env: TeXEnvironment)
 
   /** Returns the next token, expanded if necessary */
   protected[this] val read: Processor[Token] =
-    raw.flatMap {
-      case token @ ControlSequenceToken(name, _) =>
-        // if it is a macro, expand it
-        env.css(name) match {
-          case Some(cs) =>
-            // expand it if found
-            expandCs(cs, token.pos)
-          case None =>
-            // check for primitive control sequence expansions
-            name match {
-              case If() =>
-                expandIf
-              case "input" =>
-                expandInput
-              case "endinput" =>
-                for {
-                  () <- swallow
-                  () = env.endinputEncountered = true
-                  t <- read
-                } yield t
-              case "jobname" =>
-                for {
-                  () <- swallow
-                  name = env.jobname.toList.reverseMap(c =>
-                    if (c == ' ')
-                      CharacterToken(c, Category.SPACE)
-                    else
-                      CharacterToken(c, Category.OTHER_CHARACTER))
-                  () <- pushback(name)
-                  t <- read
-                } yield t
-              case "romannumeral" =>
-                expandRomannumeral
-              case "number" =>
-                expandNumber
-              case "string" =>
-                expandString
-              case "meaning" =>
-                expandMeaning
-              case "csname" =>
-                expandCsname
-              case "expandafter" =>
-                expandafter
-              case "noexpand" =>
-                for {
-                  () <- swallow
-                  t <- raw
-                } yield t
-              case _ =>
-                // otherwise return it
-                done(token)
-            }
-        }
-      case t =>
-        // otherwise just return it
-        done(t)
+    raw.flatMap { token =>
+      if (!env.expanding)
+        done(token)
+      else token match {
+        case token @ ControlSequenceToken(name, _) =>
+          // if it is a macro, expand it
+          env.css(name) match {
+            case Some(cs) =>
+              // expand it if found
+              expandCs(cs, token.pos)
+            case None =>
+              // check for primitive control sequence expansions
+              name match {
+                case If() =>
+                  expandIf
+                case "input" =>
+                  expandInput
+                case "endinput" =>
+                  for {
+                    () <- swallow
+                    () = env.endinputEncountered = true
+                    t <- read
+                  } yield t
+                case "jobname" =>
+                  for {
+                    () <- swallow
+                    name = env.jobname.toList.reverseMap(c =>
+                      if (c == ' ')
+                        CharacterToken(c, Category.SPACE)
+                      else
+                        CharacterToken(c, Category.OTHER_CHARACTER))
+                    () <- pushback(name)
+                    t <- read
+                  } yield t
+                case "romannumeral" =>
+                  expandRomannumeral
+                case "number" =>
+                  expandNumber
+                case "string" =>
+                  expandString
+                case "meaning" =>
+                  expandMeaning
+                case "csname" =>
+                  expandCsname
+                case "expandafter" =>
+                  expandafter
+                case "noexpand" =>
+                  for {
+                    () <- swallow
+                    t <- raw
+                  } yield t
+                case _ =>
+                  if (env.inReplacement)
+                    throwError(new TeXMouthException(f"Undefined control sequence \\$name.", token.pos))
+                  else
+                    // otherwise return it
+                    done(token)
+              }
+          }
+        case t =>
+          // otherwise just return it
+          done(t)
+      }
     }
 
   /** Parses and returns the next command. Tokens are expanded as needed, and we are ensured to get a typesetting command back */
@@ -204,6 +204,10 @@ class TeXMouth(val env: TeXEnvironment)
                 env.css(m.name) = m
               c <- command
             } yield c
+
+          case p @ Primitive("par") =>
+            for (() <- swallow)
+              yield Par
 
           case tok @ StartsAssignment() =>
             // this is an assignment

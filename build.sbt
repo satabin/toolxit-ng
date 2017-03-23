@@ -35,9 +35,7 @@ lazy val scalariform = scalariformSettings ++ Seq(
 lazy val core = project.in(file("core"))
   .settings(globalSettings: _*)
   .settings(
-    name := "core",
-    libraryDependencies ++= Seq(
-      "org.gnieh" %% "tekstlib" % "0.1.0-SNAPSHOT"))
+    name := "core")
 
 lazy val eyes = project.in(file("eyes"))
   .settings(globalSettings: _*)

@@ -118,14 +118,27 @@ trait TeXMacros {
         throwError(new TeXMouthException(f"Macro definition expected", t.pos))
     }
 
-    def replacement(appendBrace: Boolean): Processor[List[Token]] =
+    def replacement(expanded: Boolean, appendBrace: Boolean): Processor[List[Token]] = {
+      val oldexp = env.expanding
+      val oldrepl = env.inReplacement
+      env.expanding = expanded
+      env.inReplacement = true
       group(true, false, true).map {
         case GroupToken(_, tokens, _) =>
           if (appendBrace)
             CharacterToken('{', Category.BEGINNING_OF_GROUP) :: tokens
           else
             tokens
+      } map { tokens =>
+        env.expanding = oldexp
+        env.inReplacement = oldrepl
+        tokens
+      } recoverWith { e =>
+        env.expanding = oldexp
+        env.inReplacement = oldrepl
+        throwError(e)
       }
+    }
 
     read.flatMap {
       case ControlSequenceToken("def" | "gdef" | "edef" | "xdef", _) =>
@@ -133,7 +146,7 @@ trait TeXMacros {
           // first comes the declaration (and tokens are not expanded during this phase)
           (global, expanded, name, params, appendBrace) <- macroDecl(global)
           // and the replacement text expanded only if needed
-          replacement <- withExpansion(expanded)(replacement(appendBrace))
+          replacement <- replacement(expanded, appendBrace)
         } yield (global, TeXMacro(name, params, replacement, long, outer))
 
       case t =>

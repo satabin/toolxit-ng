@@ -43,7 +43,7 @@ import scala.annotation.tailrec
 
 class Xonsole {
 
-  def open(): Unit = {
+  def open(format: Option[String] = Some("minimal")): Unit = {
 
     val environment = new TeXEnvironment("xonsole")
 
@@ -75,7 +75,18 @@ class Xonsole {
       Enumeratees.join(
         Enumeratees.sequenceStream(eyes.tokenize)(Enumeratees.join(Enumeratees.sequenceStream(mouth.command)(stomach.process))))
 
-    terminal.writer.println("This is Xonsole, Version 0.0.1")
+    for (f <- format) {
+      val enumerator = Enumerator.resource[Unit](f"/$f.tex")
+      val i = enumerator(it).flatMap(run(3, _))
+      i match {
+        case Success(()) =>
+        // format loaded
+        case Failure(t) =>
+          t.printStackTrace
+      }
+    }
+
+    terminal.writer.println(f"This is Xonsole, Version 0.0.1${format.fold("")(f => f" (preloaded format=$f)")}")
 
     try {
       var fst = true
