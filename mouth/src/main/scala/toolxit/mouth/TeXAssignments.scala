@@ -27,7 +27,7 @@ trait TeXAssignments {
         true
       case CountdefToken(_) =>
         true
-      case Primitive("count" | "advance" | "multiply" | "divide" | "chardef" | "let" | "futurelet" | "read") =>
+      case Primitive("count" | "advance" | "multiply" | "divide" | "chardef" | "countdef" | "let" | "futurelet" | "read") =>
         true
       case Primitives.Codename(_) =>
         true
@@ -66,6 +66,15 @@ trait TeXAssignments {
           () <- equals
           c <- char(tok.pos)
         } yield CharacterDefinition(cs, c, global)
+
+      // countdef
+      case tok @ Primitive("countdef") =>
+        for {
+          () <- swallow
+          cs <- controlsequence
+          () <- equals
+          i <- bit8(tok.pos)
+        } yield CounterDefinition(cs, i, global)
 
       // let and futurelet
       case tok @ Primitive("let") =>
@@ -186,7 +195,7 @@ trait TeXAssignments {
     def unapply(token: Token): Option[Byte] = token match {
       case ControlSequenceToken(name, _) =>
         env.css(name) match {
-          case Some(TeXInteger(_, c)) => Some(c)
+          case Some(TeXCounter(_, c)) => Some(c)
           case _                      => None
         }
       case _ => None

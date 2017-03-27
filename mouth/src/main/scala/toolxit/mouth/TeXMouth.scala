@@ -113,7 +113,7 @@ class TeXMouth(val env: TeXEnvironment)
   lazy val raw: Processor[Token] = peek.flatMap {
     case Some(t) => done(t)
     case None =>
-      throwError(new TeXMouthException("End of input encountered", env.lastPosition))
+      throwError(new EOIException(env.lastPosition))
   }
 
   /** Returns the next token, expanded if necessary */
@@ -197,9 +197,11 @@ class TeXMouth(val env: TeXEnvironment)
             throwError(new TeXMouthException(f"Too many $c's.", tok.pos))
 
           case CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
+            env.enterGroup
             for {
               GroupToken(_, tokens, _) <- group(true, true, true, false)
               () <- pushback(tokens)
+              () = env.leaveGroup
               c <- command
             } yield c
 

@@ -48,6 +48,8 @@ class TeXStomach(env: TeXEnvironment, log: PrintWriter, out: PrintWriter) extend
       env.category(char, global) = cat
     case CharacterDefinition(name, char, global) =>
       env.css(name, global) = TeXChar(name, char)
+    case CounterDefinition(name, number, global) =>
+      env.css(name, global) = TeXCounter(name, number)
     case LetAssignment(name, alias, global) => alias match {
       case cs @ ControlSequenceToken(alias, _) => env.css(alias) match {
         case Some(cs) =>

@@ -106,9 +106,9 @@ class Xonsole {
 
             // we give a credit of 3 retries because of the peeking of 4 characters
             // to expand escaped characters
-            val i = enumerator(it).flatMap(run(4, _))
+            val res = enumerator(it).flatMap(run(4, _))
 
-            i match {
+            res match {
               case Success(())                 =>
               // next line
               case Failure(EOIException(_, _)) =>

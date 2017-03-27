@@ -17,6 +17,8 @@ package toolxit
 
 import dimen._
 
+import enumeratum._
+
 /** TeX basically has very few types:
  *   - signed integer,
  *   - character,
@@ -32,32 +34,35 @@ import dimen._
  *  @author Lucas Satabin
  *
  */
-object TeXType extends Enumeration {
-  val TeXInteger = Value
-  val TeXChar = Value
-  val TeXMathChar = Value
-  val TeXDimension = Value
-  val TeXGlue = Value
-  val TeXMuglue = Value
-  val TeXMacro = Value
-  val TeXAlias = Value
-  val TeXTokenList = Value
-  val TeXFont = Value
+sealed trait TeXType extends EnumEntry
+object TeXType extends Enum[TeXType] {
+  val values = findValues
+
+  object TeXCounter extends TeXType
+  object TeXChar extends TeXType
+  object TeXMathChar extends TeXType
+  object TeXDimension extends TeXType
+  object TeXGlue extends TeXType
+  object TeXMuglue extends TeXType
+  object TeXMacro extends TeXType
+  object TeXAlias extends TeXType
+  object TeXTokenList extends TeXType
+  object TeXFont extends TeXType
 }
 
 sealed trait ControlSequence {
   val name: String
-  val tpe: TeXType.Value
-}
-
-final case class TeXInteger(name: String,
-    number: Byte) extends ControlSequence {
-  val tpe = TeXType.TeXInteger
+  val tpe: TeXType
 }
 
 final case class TeXChar(name: String,
     char: Char) extends ControlSequence {
   val tpe = TeXType.TeXChar
+}
+
+final case class TeXCounter(name: String,
+    number: Byte) extends ControlSequence {
+  val tpe = TeXType.TeXCounter
 }
 
 final case class TeXMathChar(name: String,

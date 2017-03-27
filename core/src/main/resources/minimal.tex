@@ -28,3 +28,25 @@
 \catcode`\~=\active%
 \catcode`\^^L=\active%
 \outer\def^^L{\par}%
+
+% temporarily make @ a letter
+\catcode`\@=11%
+
+\countdef\count@=255%
+
+\count10=22%
+\count16=-1%
+\countdef\insc@unt=20%
+\countdef\allocationnumber=21%
+\countdef\m@ne=22 \m@ne=-1%
+
+\outer\def\newcount{\alloc@0\count\countdef\insc@unt}%
+
+\def\alloc@#1#2#3#4#5{\global\advance\count1#1 by 1
+  \ch@ck#1#4#2%
+  \allocationnumber=\count1#1 \global#3#5=\allocationnumber}
+\def\ch@ck#1#2#3{\ifnum\count1#1<#2%
+  \else\errmessage{No room for a new #3}\fi}
+
+% make @ other again
+\catcode`\@=12%

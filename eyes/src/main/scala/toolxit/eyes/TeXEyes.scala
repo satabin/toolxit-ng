@@ -105,6 +105,7 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
               // the end of line character is then eaten as well
               for {
                 () <- comment
+                () = state = ReadingState.S
                 t <- tokenize
               } yield t
             case ACTIVE_CHARACTER(ch) =>
