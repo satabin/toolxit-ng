@@ -665,6 +665,7 @@ trait TeXMacros {
         case None =>
           toTokens("undefined")
       }
+    case _ =>
       throw new TeXMouthException("THIS IS A BUG. this case should never occur.", t.pos)
   }
 
