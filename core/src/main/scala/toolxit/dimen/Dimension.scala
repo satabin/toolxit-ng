@@ -23,10 +23,17 @@ package dimen
  */
 case class Dimension(sps: Int) extends Ordered[Dimension] {
 
-  def toNumber: Int = 0
-
   def compare(that: Dimension): Int =
     this.sps - that.sps
+
+  def +(that: Int): Dimension =
+    Dimension(this.sps + that)
+
+  def *(that: Int): Dimension =
+    Dimension(this.sps * that)
+
+  def /(that: Int): Dimension =
+    Dimension(this.sps / that)
 
 }
 
@@ -41,6 +48,8 @@ object Dimension {
   // dd -> didot point (1157 dd = 1238 pt)
   // cc -> cicero (1 cc = 12 dd)
   // sp -> scaled point (65536 sp = 1 pt)
+
+  def ofScaledPoint(sp: Double): Dimension = Dimension(sp.toInt)
 
   def ofPoint(point: Double): Dimension = Dimension((65536f * point).toInt)
 

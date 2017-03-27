@@ -132,33 +132,14 @@ trait TeXNumbers {
         throwError(new TeXMouthException(f"Category number (0-15) expected but got $i", pos))
     }
 
-  val unsignedNumber: Processor[Int] =
+  val internalInteger: Processor[Int] =
     for {
       tok <- read
       i <- tok match {
-        case t if isDecimalDigit(t) =>
-          integerConstant(0)
-        case CharacterToken(''', Category.OTHER_CHARACTER) =>
-          for {
-            () <- swallow
-            i <- octalConstant(0)
-          } yield i
-        case CharacterToken('"', Category.OTHER_CHARACTER) =>
-          for {
-            () <- swallow
-            i <- hexConstant(0)
-          } yield i
-        case CharacterToken('`', Category.OTHER_CHARACTER) =>
-          for {
-            () <- swallow
-            // the character token is not expanded
-            next <- read
-            i <- next match {
-              case CharacterToken(c, _) => swallow.andThen(done(c.toInt))
-              case ControlSequenceToken(name, _) if name.size == 1 => swallow.andThen(done(name(0).toInt))
-              case _ => throwError[Token](TeXMouthException("character or single character constrol sequence expected", next.pos))
-            }
-          } yield i
+        case ControlSequenceToken(CharDef(c), _) =>
+          for (() <- swallow)
+            yield c.toInt
+
         case Primitives.IntegerParameter(name) =>
           for (() <- swallow)
             yield env.integerParameter(name)
@@ -214,9 +195,44 @@ trait TeXNumbers {
           for (() <- swallow)
             yield env.integers.getOrElse(name, 0)
 
-        case ControlSequenceToken(CharDef(c), _) =>
-          for (() <- swallow)
-            yield c.toInt
+        case tok =>
+          throwError[Token](new TeXMouthException(f"Expected internal integer but got $tok", tok.pos))
+
+      }
+    } yield i
+
+  val normalInteger: Processor[Int] =
+    for {
+      tok <- read
+      i <- tok match {
+        case t if isDecimalDigit(t) =>
+          integerConstant(0)
+
+        case CharacterToken(''', Category.OTHER_CHARACTER) =>
+          for {
+            () <- swallow
+            i <- octalConstant(0)
+          } yield i
+
+        case CharacterToken('"', Category.OTHER_CHARACTER) =>
+          for {
+            () <- swallow
+            i <- hexConstant(0)
+          } yield i
+
+        case CharacterToken('`', Category.OTHER_CHARACTER) =>
+          for {
+            () <- swallow
+            // the character token is not expanded
+            next <- read
+            i <- next match {
+              case CharacterToken(c, _) => swallow.andThen(done(c.toInt))
+              case ControlSequenceToken(name, _) if name.size == 1 => swallow.andThen(done(name(0).toInt))
+              case _ => throwError[Token](TeXMouthException("character or single character constrol sequence expected", next.pos))
+            }
+          } yield i
+
+        case StartsInternalInteger() => internalInteger
 
         case tok =>
           throwError[Token](new TeXMouthException(f"Expected integer but got $tok", tok.pos))
@@ -228,8 +244,38 @@ trait TeXNumbers {
   val number: Processor[Int] =
     for {
       sign <- signs()
-      i <- unsignedNumber
+      t <- read
+      i <- t match {
+        case StartsNormalInteger() => normalInteger
+        // TODO add support for coerced integers
+        case _                     => throwError[Token](new TeXMouthException(f"Number expected but got $t", t.pos))
+      }
     } yield sign * i
+
+  // extractors
+
+  object StartsNormalInteger {
+    def unapply(tok: Token): Boolean =
+      tok match {
+        case CharacterToken(c, Category.OTHER_CHARACTER) if c.isDigit => true
+        case CharacterToken(''', Category.OTHER_CHARACTER) => true
+        case CharacterToken('"', Category.OTHER_CHARACTER) => true
+        case CharacterToken('`', Category.OTHER_CHARACTER) => true
+        case _ => StartsInternalInteger.unapply(tok)
+      }
+  }
+
+  object StartsInternalInteger {
+    def unapply(tok: Token): Boolean =
+      tok match {
+        case Primitives.IntegerParameter(_)      => true
+        case Primitives.SpecialInteger(_)        => true
+        case Primitives.Codename(_)              => true
+        case Primitives.InternalInteger(_)       => true
+        case ControlSequenceToken(CharDef(_), _) => true
+        case _                                   => false
+      }
+  }
 
   object CharDef {
     def unapply(name: String): Option[Char] = env.css(name) match {

@@ -22,8 +22,6 @@ import util._
 
 import java.io.FileReader
 
-import scala.language.higherKinds
-
 /** The TeX mouth is a parser from tokens produced by the [[toolxit.eyes.TeXEyes]]
  *  and produces in turn commands that can be digested by the stomach.
  *  This parser interpretes all primitive TeX commands that define new macros, counters, or change internal quantities.
@@ -47,6 +45,7 @@ class TeXMouth(val env: TeXEnvironment)
     with TeXMacros
     with TeXNumbers
     with TeXDimensions
+    with TeXGlues
     with TeXFonts
     with TeXAssignments {
 
@@ -420,29 +419,65 @@ class TeXMouth(val env: TeXEnvironment)
    *  <keyword(name)> ::= <space>* <name>
    *  }}}
    */
-  final def keyword(name: String, optional: Boolean): Processor[Unit] = {
-    def loop(idx: Int, acc: List[CharacterToken]): Processor[Unit] =
+  final def keyword(name: String, optional: Boolean): Processor[Boolean] = {
+    def loop(idx: Int, acc: List[CharacterToken]): Processor[Boolean] =
       if (idx >= name.size) {
-        done(acc.reverse)
+        done(true)
       } else {
         read.flatMap {
           case char @ CharacterToken(c, _) if c.toLower == name.charAt(idx).toLower =>
             for {
               () <- swallow
-              () <- loop(idx + 1, char :: acc)
-            } yield ()
+              b <- loop(idx + 1, char :: acc)
+            } yield b
           case t =>
             if (optional)
               // push back what we read
-              pushback(acc)
+              for {
+                () <- pushback(acc)
+              } yield false
             else
               throwError(new TeXMouthException(f"Expected ${name.charAt(idx)} but $t found", t.pos))
         }
       }
     for {
       () <- spaces
-      l <- loop(0, Nil)
-    } yield l
+      b <- loop(0, Nil)
+    } yield b
+  }
+
+  /** Reads a keyword of the form:
+   *  {{{
+   *  <keyword(name)> ::= <space>* <name>
+   *  }}}
+   *  amongst one of the provided keywords and returns the matching one in lower case.
+   *  Longest match wins.
+   */
+  final def keyword(keywords: Seq[String]): Processor[String] = {
+    val trie = new TrieNode(keywords)
+    def loop(pos: Position, trie: TrieNode, acc: StringBuilder): Processor[String] =
+      read.flatMap {
+        case char @ CharacterToken(c, _) =>
+          trie.query(c) match {
+            case Some(trie) =>
+              for {
+                () <- swallow
+                s <- loop(pos, trie, acc.append(c.toLower))
+              } yield s
+            case None =>
+              if (trie.word)
+                done(acc.toString)
+              else
+                throwError(new TeXMouthException(f"Expected one of ${keywords.map(_.toLowerCase).mkString("(", ", ", ")")}", pos))
+          }
+        case t =>
+          throwError(new TeXMouthException(f"Expected one of ${keywords.map(_.toLowerCase).mkString("(", ", ", ")")}", t.pos))
+      }
+    for {
+      () <- spaces
+      t <- read
+      kwd <- loop(t.pos, trie, new StringBuilder)
+    } yield kwd
   }
 
 }

@@ -69,6 +69,7 @@ class TeXEnvironment(_jobname: String) {
     val fonts = Map.empty[Byte, Int]
 
     val integerParameters = Map.empty[String, Int]
+    val dimensionParameters = Map.empty[String, Dimension]
     // TODO other register types
 
   }
@@ -391,6 +392,36 @@ class TeXEnvironment(_jobname: String) {
       locals.dimensions(number) = value
   }
 
+  /** Exposes dimension parameter register management functions.
+   *
+   *  @group Registers
+   */
+  object dimensionParameter {
+
+    /** Finds and returns the dimension parameter register value identified by its register number
+     *  in the current environment.
+     *  The default value of a count register is `0`.
+     */
+    def apply(name: String): Dimension =
+      lookupRegister(name, (_.dimensionParameters), locals).getOrElse(ZeroDimen)
+
+    /** Sets the value of the dimension parameter register in the current environment.
+     *  This value will be reset to the previous value when leaving the current group.
+     */
+    def update(name: String, value: Dimension) =
+      locals.dimensionParameters(name) = value
+
+    def update(name: String, mode: AssignmentMode, global: Boolean, value: Int): Unit = {
+      val params = if (global) root.dimensionParameters else locals.dimensionParameters
+      mode match {
+        case AssignmentMode.Set      => params(name) = Dimension(value)
+        case AssignmentMode.Advance  => params(name) = params.getOrElse(name, ZeroDimen) + value
+        case AssignmentMode.Multiply => params(name) = params.getOrElse(name, ZeroDimen) * value
+        case AssignmentMode.Divide   => params(name) = params.getOrElse(name, ZeroDimen) / value
+      }
+    }
+  }
+
   /** Exposes glue register management functions.
    *
    *  @group Registers
@@ -458,11 +489,35 @@ class TeXEnvironment(_jobname: String) {
   var escapechar: Char =
     '\\'
 
-  /** The special integers and internal integers.
+  /** The special integers.
    *
    *  @group Globals
    */
   val integers = Map.empty[String, Int]
+
+  /** The special dimensions.
+   *
+   *  @group Globals
+   */
+  val dimensions = Map.empty[String, Dimension]
+
+  /** The ht dimensions.
+   *
+   *  @group Globals
+   */
+  val ht = Map.empty[Byte, Dimension]
+
+  /** The wd dimensions.
+   *
+   *  @group Globals
+   */
+  val wd = Map.empty[Byte, Dimension]
+
+  /** The dp dimensions.
+   *
+   *  @group Globals
+   */
+  val dp = Map.empty[Byte, Dimension]
 
   // ==== bunch of useful extractors ====
 

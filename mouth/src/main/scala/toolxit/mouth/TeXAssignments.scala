@@ -155,7 +155,7 @@ trait TeXAssignments {
         for {
           () <- swallow
           i <- catNumber(tok.pos)
-          () <- to
+          _ <- to
           () <- spaces
           cs <- controlsequence
         } yield Read(i, cs, global)
@@ -169,20 +169,20 @@ trait TeXAssignments {
         case Primitives.IntegerParameter(name) =>
           for {
             () <- swallow
-            () <- by
+            _ <- by
             i <- number
           } yield IntegerParameterAssignment(name, i, mode, global)
         case tok @ CountdefToken(cnt) =>
           for {
             () <- swallow
-            () <- by
+            _ <- by
             i <- number
           } yield CounterAssignment(cnt, i, mode, global)
         case tok @ ControlSequenceToken("count", _) =>
           for {
             () <- swallow
             cnt <- bit8(tok.pos)
-            () <- by
+            _ <- by
             i <- number
           } yield CounterAssignment(cnt, i, mode, global)
 

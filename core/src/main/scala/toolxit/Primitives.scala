@@ -310,6 +310,39 @@ object Primitives {
     }
   }
 
+  val specialDimension = Set(
+    "prevdepth",
+    "pagegoal",
+    "pagetotal",
+    "pagestretch",
+    "pagefilstretch",
+    "pagefillstretch",
+    "pagefilllstretch",
+    "pageshrink",
+    "pagedepth")
+
+  object SpecialDimension {
+    def unapply(token: Token): Option[String] = token match {
+      case ControlSequenceToken(name, _) if specialDimension.contains(name) => Some(name)
+      case _ => None
+    }
+  }
+
+  val internalDimension = Set(
+    "lastkern",
+    "dimen",
+    "fontdimen",
+    "ht",
+    "wd",
+    "dp")
+
+  object InternalDimension {
+    def unapply(token: Token): Option[String] = token match {
+      case ControlSequenceToken(name, _) if internalDimension.contains(name) => Some(name)
+      case _ => None
+    }
+  }
+
   val all =
     expandablePrimitives ++
       integerParameter ++
@@ -319,6 +352,8 @@ object Primitives {
       tokenParameter ++
       specialInteger ++
       internalInteger ++
-      codename
+      codename ++
+      specialDimension ++
+      internalDimension
 
 }
