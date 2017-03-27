@@ -78,7 +78,7 @@ class Xonsole {
 
       for (f <- format) {
         val enumerator = Enumerator.resource[Unit](f"/$f.tex")
-        val i = enumerator(it).flatMap(run(3, _))
+        val i = enumerator(it).flatMap(run(4, _))
         i match {
           case Success(())                 =>
           // format loaded
@@ -109,12 +109,12 @@ class Xonsole {
             val i = enumerator(it).flatMap(run(4, _))
 
             i match {
-              case Success(()) =>
+              case Success(())                 =>
+              // next line
+              case Failure(EOIException(_, _)) =>
               // next line
               case Failure(EndException) =>
                 throw new EndOfFileException
-              case Failure(EOIException(_, _)) =>
-              // next line
               case Failure(TeXMouthException(msg, pos)) =>
                 terminal.writer.println(f"$pos $msg")
               case Failure(t) =>

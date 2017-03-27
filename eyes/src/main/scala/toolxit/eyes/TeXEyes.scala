@@ -52,7 +52,7 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
    *     - `^^A` where A is a letter (< 128)
    *     - any other character
    */
-  val preprocessor: Processor[(Char, Int, Int)] =
+  val preprocessor: Processor[Option[(Char, Int, Int)]] =
     peek(4).flatMap {
       case List(
         (SUPERSCRIPT(sup1), l, c),
@@ -60,101 +60,101 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
         (Hexa(h1), _, _),
         (Hexa(h2), _, _)) if sup1 == sup2 =>
         for (() <- swallow(4))
-          yield (((h1 << 4) + h2).toChar, l, c)
+          yield Some((((h1 << 4) + h2).toChar, l, c))
       case List(
         (SUPERSCRIPT(sup1), l, c),
         (SUPERSCRIPT(sup2), _, _),
         (ch, _, _), _*) if sup1 == sup2 =>
         for (() <- swallow(3))
-          yield (if (ch < 64) (ch + 64).toChar else (ch - 64).toChar, l, c)
+          yield Some((if (ch < 64) (ch + 64).toChar else (ch - 64).toChar, l, c))
       case ps @ List((ch, l, c), _*) =>
         for (() <- swallow)
-          yield (ch, l, c)
+          yield Some((ch, l, c))
       case Nil =>
-        throwError(EOIException(env.lastPosition.line, env.lastPosition.column))
+        done(None)
     }
 
   val letters: Processor[String] =
-    peek.flatMap {
-      case Some(_) =>
-        preprocessor.flatMap {
-          case (LETTER(l), _, _) =>
-            letters.map(l + _)
-          case tok => pushback(tok).andThen(done(""))
-        }
-      case None => done("")
+    preprocessor.flatMap {
+      case Some((LETTER(l), _, _)) => letters.map(l + _)
+      case Some(tok)               => pushback(tok).andThen(done(""))
+      case None                    => done("")
     }
 
   val comment: Processor[Unit] =
-    peek.flatMap {
-      case Some(_) =>
-        preprocessor.flatMap {
-          case (END_OF_LINE(_), _, _) => noop
-          case _                      => comment
-        }
-      case None => noop
+    preprocessor.flatMap {
+      case Some((END_OF_LINE(_), _, _)) => noop
+      case Some(_)                      => comment
+      case None                         => noop
     }
 
   val tokenize: Processor[Token] =
     for {
-      (ch, l, c) <- preprocessor
-      t <- ch match {
-        case IGNORED_CHARACTER(_) =>
-          // the obvious case is to ignore currently ignored characters
-          tokenize
-        case SPACE(_) if state == ReadingState.S || state == ReadingState.N =>
-          // when in reading state 'skipping blanks' or 'new line', spaces are ignored as well
-          tokenize
-        case COMMENT_CHARACTER(_) =>
-          // when a comment started it lasts until the end of line is reached
-          // the end of line character is then eaten as well
-          for {
-            () <- comment
-            t <- tokenize
-          } yield t
-        case ACTIVE_CHARACTER(ch) =>
-          // an active character is control sequence, and after control sequence we go into
-          // the 'skipping blanks' state
-          state = ReadingState.S
-          done(ControlSequenceToken(ch.toString, true).atPos(SimplePosition(l, c)))
-        case ESCAPE_CHARACTER(_) =>
-          // a control sequence starts with an escape character and is followed by letters
-          // or a single other character
-          // after control sequence we go into the 'skipping blanks' state
-          env.state = ReadingState.S
-          preprocessor.flatMap {
-            case (LETTER(f), _, _) =>
+      pp <- preprocessor
+      t <- pp match {
+        case Some((ch, l, c)) =>
+          ch match {
+            case IGNORED_CHARACTER(_) =>
+              // the obvious case is to ignore currently ignored characters
+              tokenize
+            case SPACE(_) if state == ReadingState.S || state == ReadingState.N =>
+              // when in reading state 'skipping blanks' or 'new line', spaces are ignored as well
+              tokenize
+            case COMMENT_CHARACTER(_) =>
+              // when a comment started it lasts until the end of line is reached
+              // the end of line character is then eaten as well
               for {
-                csname <- letters
-              } yield ControlSequenceToken(f + csname, false).atPos(SimplePosition(l, c))
-            case (ch, _, _) =>
-              for (() <- swallow) yield {
-                ControlSequenceToken(ch.toString, false).atPos(SimplePosition(l, c))
+                () <- comment
+                t <- tokenize
+              } yield t
+            case ACTIVE_CHARACTER(ch) =>
+              // an active character is control sequence, and after control sequence we go into
+              // the 'skipping blanks' state
+              state = ReadingState.S
+              done(ControlSequenceToken(ch.toString, true).atPos(SimplePosition(l, c)))
+            case ESCAPE_CHARACTER(_) =>
+              // a control sequence starts with an escape character and is followed by letters
+              // or a single other character
+              // after control sequence we go into the 'skipping blanks' state
+              env.state = ReadingState.S
+              preprocessor.flatMap {
+                case Some((LETTER(f), _, _)) =>
+                  for {
+                    csname <- letters
+                  } yield ControlSequenceToken(f + csname, false).atPos(SimplePosition(l, c))
+                case Some((ch, _, _)) =>
+                  for (() <- swallow) yield {
+                    ControlSequenceToken(ch.toString, false).atPos(SimplePosition(l, c))
+                  }
+                case None =>
+                  throwError(new TeXEyesException(env.lastPosition.line, env.lastPosition.column, "End of input reached before parsing control sequence name"))
               }
+            case END_OF_LINE(_) if env.state == ReadingState.N =>
+              // when reading end of line and if we are in the 'new line' reading state,
+              // this is equivalent to the `\par` control sequence and stay in the same state
+              done(ControlSequenceToken("par", false).atPos(SimplePosition(l, c)))
+            case END_OF_LINE(_) if env.state == ReadingState.M =>
+              // otherwise in any reading state 'middle of line', it is considered as a space and we go into
+              // 'new line' reading state
+              env.state = ReadingState.N
+              done(CharacterToken(' ', Category.SPACE).atPos(SimplePosition(l, c)))
+            case END_OF_LINE(_) =>
+              // otherwise we are skipping blank characters, so just ignore it
+              tokenize
+            case SPACE(_) =>
+              // if this is a space character, we go into the 'skipping blanks' reading state
+              // the space token is always ' ' even if it were some other characters that
+              // was assigned the SPACE category
+              env.state = ReadingState.S
+              done(CharacterToken(' ', Category.SPACE).atPos(SimplePosition(l, c)))
+            case _ =>
+              // otherwise, any other character is returned and we are now in the 'middle of line'
+              // reading state
+              env.state = ReadingState.M
+              done(CharacterToken(ch, category(ch)).atPos(SimplePosition(l, c)))
           }
-        case END_OF_LINE(_) if env.state == ReadingState.N =>
-          // when reading end of line and if we are in the 'new line' reading state,
-          // this is equivalent to the `\par` control sequence and stay in the same state
-          done(ControlSequenceToken("par", false).atPos(SimplePosition(l, c)))
-        case END_OF_LINE(_) if env.state == ReadingState.M =>
-          // otherwise in any reading state 'middle of line', it is considered as a space and we go into
-          // 'new line' reading state
-          env.state = ReadingState.N
-          done(CharacterToken(' ', Category.SPACE).atPos(SimplePosition(l, c)))
-        case END_OF_LINE(_) =>
-          // otherwise we are skipping blank characters, so just ignore it
-          tokenize
-        case SPACE(_) =>
-          // if this is a space character, we go into the 'skipping blanks' reading state
-          // the space token is always ' ' even if it were some other characters that
-          // was assigned the SPACE category
-          env.state = ReadingState.S
-          done(CharacterToken(' ', Category.SPACE).atPos(SimplePosition(l, c)))
-        case _ =>
-          // otherwise, any other character is returned and we are now in the 'middle of line'
-          // reading state
-          env.state = ReadingState.M
-          done(CharacterToken(ch, category(ch)).atPos(SimplePosition(l, c)))
+        case None =>
+          done(EOIToken().atPos(SimplePosition(env.lastPosition.line, env.lastPosition.column)))
       }
     } yield {
       env.lastPosition = t.pos

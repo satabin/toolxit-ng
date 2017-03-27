@@ -116,9 +116,6 @@ class TeXEnvironment(_jobname: String) {
   var inReplacement: Boolean =
     false
 
-  var macrosOnly: Boolean =
-    false
-
   /** The stack of opened inputs. The current read input stream is on the top.
    *
    *  @group Globals

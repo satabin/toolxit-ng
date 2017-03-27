@@ -72,3 +72,7 @@ case class ParameterToken(number: Int) extends Token {
 case class GroupToken(open: Token, inner: List[Token], close: Token) extends Token {
   def toString(env: TeXEnvironment) = f"$open${inner.reverseMap(_.toString(env)).mkString}"
 }
+
+case class EOIToken() extends Token {
+  def toString(env: TeXEnvironment) = "<EOI>"
+}

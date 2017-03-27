@@ -50,15 +50,19 @@ trait TeXNumbers {
       false
   }
 
-  val integerConstant: Processor[Int] =
+  def integerConstant(acc: Int): Processor[Int] =
     for {
-      digits <- takeWhile(isDecimalDigit)
-    } yield digits.collect {
-      case CharacterToken(c, _) => c
-    }.foldLeft(0) {
-      case (acc, c) =>
-        acc * 10 + c - 48
-    }
+      digit <- read
+      i <- digit match {
+        case CharacterToken(c, Category.OTHER_CHARACTER) if c.isDigit =>
+          for {
+            () <- swallow
+            i <- integerConstant(acc * 10 + (c - 48))
+          } yield i
+        case t =>
+          done(acc)
+      }
+    } yield i
 
   def isOctalDigit(tok: Token): Boolean = tok match {
     case CharacterToken(c, Category.OTHER_CHARACTER) =>
@@ -67,15 +71,19 @@ trait TeXNumbers {
       false
   }
 
-  val octalConstant: Processor[Int] =
+  def octalConstant(acc: Int): Processor[Int] =
     for {
-      digits <- takeWhile(isOctalDigit)
-    } yield digits.collect {
-      case CharacterToken(c, _) => c
-    }.foldLeft(0) {
-      case (acc, c) =>
-        acc * 8 + c - 48
-    }
+      digit <- read
+      i <- digit match {
+        case CharacterToken(c, Category.OTHER_CHARACTER) if c - 48 >= 0 && c - 48 < 8 =>
+          for {
+            () <- swallow
+            i <- octalConstant(acc * 8 + (c - 48))
+          } yield i
+        case t =>
+          done(acc)
+      }
+    } yield i
 
   def isHexDigit(tok: Token): Boolean = tok match {
     case CharacterToken(c, Category.OTHER_CHARACTER) if c.isDigit =>
@@ -86,18 +94,24 @@ trait TeXNumbers {
       false
   }
 
-  val hexConstant: Processor[Int] =
+  def hexConstant(acc: Int): Processor[Int] =
     for {
-      digits <- takeWhile(isHexDigit)
-    } yield digits.collect {
-      case CharacterToken(c, _) => c
-    }
-      .foldLeft(0) {
-        case (acc, c) if c.isDigit =>
-          acc * 16 + c - 48
-        case (acc, c) =>
-          acc * 16 + c - 65
+      digit <- read
+      i <- digit match {
+        case CharacterToken(c, Category.OTHER_CHARACTER) if c.isDigit =>
+          for {
+            () <- swallow
+            i <- hexConstant(acc * 16 + (c - 48))
+          } yield i
+        case CharacterToken(c, Category.OTHER_CHARACTER) if c - 65 >= 0 && c - 65 < 6 =>
+          for {
+            () <- swallow
+            i <- hexConstant(acc * 16 + (c - 65))
+          } yield i
+        case t =>
+          done(acc)
       }
+    } yield i
 
   def bit8(pos: Position): Processor[Byte] =
     number.flatMap { i =>
@@ -123,16 +137,16 @@ trait TeXNumbers {
       tok <- read
       i <- tok match {
         case t if isDecimalDigit(t) =>
-          integerConstant
+          integerConstant(0)
         case CharacterToken(''', Category.OTHER_CHARACTER) =>
           for {
             () <- swallow
-            i <- octalConstant
+            i <- octalConstant(0)
           } yield i
         case CharacterToken('"', Category.OTHER_CHARACTER) =>
           for {
             () <- swallow
-            i <- hexConstant
+            i <- hexConstant(0)
           } yield i
         case CharacterToken('`', Category.OTHER_CHARACTER) =>
           for {
@@ -211,20 +225,11 @@ trait TeXNumbers {
       _ <- optSpace
     } yield i
 
-  def number: Processor[Int] = {
-    val oldmacros = env.macrosOnly
-    env.macrosOnly = true
-    (for {
+  val number: Processor[Int] =
+    for {
       sign <- signs()
       i <- unsignedNumber
-    } yield {
-      env.macrosOnly = oldmacros
-      sign * i
-    }) recoverWith { e =>
-      env.macrosOnly = oldmacros
-      throwError(e)
-    }
-  }
+    } yield sign * i
 
   object CharDef {
     def unapply(name: String): Option[Char] = env.css(name) match {

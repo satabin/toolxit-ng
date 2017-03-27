@@ -224,65 +224,42 @@ trait TeXMacros {
               res <- loop(rest, None, Nil, acc)
             } yield res
           case (token @ GroupToken(_, _, _)) :: _ =>
-            throwError(new TeXMouthException("Groups are not allowed in macro parameter listf", token.pos))
+            throwError(new TeXMouthException("Groups are not allowed in macro parameter list", token.pos))
+          case (token @ EOIToken()) :: _ =>
+            throwError(new TeXMouthException("End of input is not allowed in macro parameter list", token.pos))
         }
 
     }
     loop(parameters, None, Nil, Nil)
   }
 
-  final def expandCs(cs: ControlSequence, pos: Position): Processor[Token] =
-    cs match {
-      case TeXMacro(_, parameters, replacement, long, outer) =>
-        for {
-          // consume the macro name
-          () <- swallow
-          // parse the arguments
-          args <- withExpansion(false)(arguments(long, parameters))
-          // we then push back the replacement text onto the token stack
-          // replacing as it goes the parameters by the parsed ones.
-          args1 = replacement.flatMap {
-            case ParameterToken(i) =>
-              // by construction (with the parser) the parameter exists
-              if (env.debugPositions)
-                args(i - 1).flatMap {
-                  case GroupToken(_, tokens, _) =>
-                    tokens.map(a => a.atPos(pos, Some(a.pos)))
-                  case a =>
-                    List(a.atPos(pos, Some(a.pos)))
-                }
-              else
-                args(i - 1)
-            case token =>
-              List(token)
-          }
-          () <- pushback(args1)
-          // and read again
-          t <- read
-        } yield t
-
-      case TeXChar(_, c) if !env.macrosOnly =>
-        for {
-          () <- swallow
-          () <- pushback(CharacterToken(c, env.category(c)))
-          // read again
-          t <- read
-        } yield t
-
-      case TeXCsAlias(_, t) if !env.macrosOnly =>
-        for {
-          () <- swallow
-          () <- pushback(t)
-          // read again
-          t <- read
-        } yield t
-
-      case _ =>
-        for {
-          // return it raw
-          t <- raw
-        } yield t
-    }
+  final def expandMacro(parameters: List[Token], replacement: List[Token], long: Boolean, outer: Boolean, pos: Position): Processor[Token] =
+    for {
+      // consume the macro name
+      () <- swallow
+      // parse the arguments
+      args <- withExpansion(false)(arguments(long, parameters))
+      // we then push back the replacement text onto the token stack
+      // replacing as it goes the parameters by the parsed ones.
+      args1 = replacement.flatMap {
+        case ParameterToken(i) =>
+          // by construction (with the parser) the parameter exists
+          if (env.debugPositions)
+            args(i - 1).flatMap {
+              case GroupToken(_, tokens, _) =>
+                tokens.map(a => a.atPos(pos, Some(a.pos)))
+              case a =>
+                List(a.atPos(pos, Some(a.pos)))
+            }
+          else
+            args(i - 1)
+        case token =>
+          List(token)
+      }
+      () <- pushback(args1)
+      // and read again
+      t <- read
+    } yield t
 
   def expandIf: Processor[Token] =
     raw.flatMap {
@@ -722,8 +699,8 @@ trait TeXMacros {
           () <- swallow
           name <- loop(Nil)
           t <- env.css(name.map(_.toString(env)).mkString) match {
-            case Some(cs @ TeXMacro(_, _, _, _, _)) => expandCs(cs, start.pos)
-            case _                                  => read // if not found it does nothing, just go ahead
+            case Some(cs @ TeXMacro(_, parameters, replacement, long, outer)) => expandMacro(parameters, replacement, long, outer, start.pos)
+            case _ => read // if not found it does nothing, just go ahead
           }
         } yield t
       case t =>

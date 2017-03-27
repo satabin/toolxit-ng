@@ -79,6 +79,12 @@ class TeXMouth(val env: TeXEnvironment)
       }
   }
 
+  protected[this] object UserDefined {
+    @inline
+    def unapply(name: String): Option[ControlSequence] =
+      env.css(name)
+  }
+
   protected[this] object If {
     def unapply(name: String): Boolean =
       Primitives.isIf(name)
@@ -119,9 +125,12 @@ class TeXMouth(val env: TeXEnvironment)
         case token @ ControlSequenceToken(name, _) =>
           // if it is a macro, expand it
           env.css(name) match {
-            case Some(cs) =>
+            case Some(TeXMacro(_, parameters, replacement, long, outer)) =>
               // expand it if found
-              expandCs(cs, token.pos)
+              expandMacro(parameters, replacement, long, outer, token.pos)
+            case Some(_) =>
+              // another user defined cs, will be treated in commands
+              done(token)
             case None =>
               // check for primitive control sequence expansions
               name match {
@@ -182,6 +191,8 @@ class TeXMouth(val env: TeXEnvironment)
     modifiers().flatMap {
       case (long, outer, global) =>
         read.flatMap {
+          case tok @ EOIToken() =>
+            throwError(new EOIException(tok.pos))
           case tok @ CharacterToken(c, Category.END_OF_GROUP) =>
             throwError(new TeXMouthException(f"Too many $c's.", tok.pos))
 
@@ -227,6 +238,31 @@ class TeXMouth(val env: TeXEnvironment)
               throwError(new TeXMouthException(f"Only prefix `\\global' is allowed for assignments", tok.pos))
             } else {
               simpleAssignment(global)
+            }
+
+          case t @ ControlSequenceToken(UserDefined(cs), _) =>
+            cs match {
+              case TeXChar(_, c) =>
+                for {
+                  () <- swallow
+                  () <- pushback(CharacterToken(c, env.category(c)))
+                  // read again
+                  c <- command
+                } yield c
+
+              case TeXCsAlias(_, t) =>
+                for {
+                  () <- swallow
+                  () <- pushback(t)
+                  // read again
+                  c <- command
+                } yield c
+
+              case TeXMacro(_, _, _, _, _) =>
+                throwError(new TeXMouthException("Macros should already be expanded in commands", t.pos))
+
+              case _ =>
+                throwError(new TeXMouthException(f"Command ${cs.name} not implemented yet", t.pos))
             }
 
           case cs @ ControlSequenceToken(name, _) =>
@@ -357,7 +393,7 @@ class TeXMouth(val env: TeXEnvironment)
 
   /** Reads an space character (with category code SPACE). */
   val optSpace: Processor[Option[CharacterToken]] =
-    raw.flatMap {
+    read.flatMap {
       case c @ CharacterToken(_, Category.SPACE) =>
         for (() <- swallow)
           yield Some(c)
@@ -367,7 +403,7 @@ class TeXMouth(val env: TeXEnvironment)
 
   /** Reads zero or more space characters (with category code SPACE). */
   lazy val spaces: Processor[Unit] =
-    raw.flatMap {
+    read.flatMap {
       case CharacterToken(_, Category.SPACE) =>
         for {
           () <- swallow

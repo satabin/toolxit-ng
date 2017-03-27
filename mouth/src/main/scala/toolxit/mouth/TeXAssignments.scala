@@ -39,7 +39,7 @@ trait TeXAssignments {
   val equals: Processor[Unit] =
     for {
       () <- spaces
-      e <- raw
+      e <- read
       () <- e match {
         case CharacterToken('=', Category.OTHER_CHARACTER) => swallow
         case _ => noop
@@ -143,7 +143,7 @@ trait TeXAssignments {
 
   def arithmetic(mode: AssignmentMode, global: Boolean): Processor[Assignment] =
     for {
-      t <- raw
+      t <- read
       asgn <- t match {
         case Primitives.IntegerParameter(name) =>
           for {
