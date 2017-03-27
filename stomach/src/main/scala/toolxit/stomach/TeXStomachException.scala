@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2015 Lucas Satabin
+* Copyright (c) 2017 Lucas Satabin
 *
 * Licensed under the Apache License = Value val Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,13 +14,14 @@
 * limitations under the License.
 */
 package toolxit
-package mouth
+package stomach
 
 import util.Position
 
-/** The only exception thrown by the [[TeXMouth]]. It should always indicate where
+/** The only exception thrown by the [[TeXStomach]]. It should always indicate where
  *  the exception occurred in the current file.
  *
  *  @author Lucas Satabin
  */
-class TeXMouthException(msg: String, location: Position) extends TeXException(location, msg)
+class TeXStomachException(msg: String, location: Position) extends TeXException(location, msg)
+

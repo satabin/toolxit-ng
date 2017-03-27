@@ -70,7 +70,7 @@ class Xonsole {
 
       val mouth = new TeXMouth(environment)
 
-      val stomach = new TeXStomach(environment, terminal.writer, out)
+      val stomach = new TeXStomach(environment, out)
 
       val it =
         Enumeratees.join(
@@ -80,11 +80,11 @@ class Xonsole {
         val enumerator = Enumerator.resource[Unit](f"/$f.tex")
         val i = enumerator(it).flatMap(run(4, _))
         i match {
-          case Success(())                 =>
+          case Success(())              =>
           // format loaded
-          case Failure(EOIException(_, _)) =>
+          case Failure(EOIException(_)) =>
           // format loaded
-          case Failure(TeXMouthException(msg, pos)) =>
+          case Failure(TeXException(msg, pos)) =>
             terminal.writer.println(f"$pos $msg")
           case Failure(t) =>
             t.printStackTrace
@@ -109,13 +109,15 @@ class Xonsole {
             val res = enumerator(it).flatMap(run(4, _))
 
             res match {
-              case Success(())                 =>
+              case Success(())              =>
               // next line
-              case Failure(EOIException(_, _)) =>
+              case Failure(EOIException(_)) =>
               // next line
               case Failure(EndException) =>
                 throw new EndOfFileException
-              case Failure(TeXMouthException(msg, pos)) =>
+              case Failure(TeXException(msg, pos)) =>
+                terminal.writer.print(" " * pos.column)
+                terminal.writer.println("^")
                 terminal.writer.println(f"$pos $msg")
               case Failure(t) =>
                 t.printStackTrace

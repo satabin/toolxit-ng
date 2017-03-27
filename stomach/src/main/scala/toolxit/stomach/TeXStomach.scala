@@ -20,19 +20,20 @@ import util._
 
 import java.io.PrintWriter
 
-class TeXStomach(env: TeXEnvironment, log: PrintWriter, out: PrintWriter) extends Iteratees[Command] {
+class TeXStomach(env: TeXEnvironment, out: PrintWriter) extends Iteratees[Command] {
 
   type Processor[+T] = Iteratee[Command, T]
 
   lazy val process: Processor[Unit] = headOption.flatMap {
     case Some(cs @ CS("end")) =>
       throwError(EndException)
+    case Some(cs @ CS(name)) => throwError(new TeXStomachException(f"Undefined control sequence \\$name", cs.pos))
     case Some(v) =>
       v match {
         case Typeset(c)        => out.print(c)
         case Par               => out.print("\n\n")
         case Assignment(assgn) => assign(assgn)
-        case cs @ CS(name)     => log.println(f"${cs.pos} Undefined control sequence \\$name")
+        case cs @ CS(name)     => assert(false)
       }
       process
     case None =>

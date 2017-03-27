@@ -232,7 +232,7 @@ trait TeXNumbers {
             i <- next match {
               case CharacterToken(c, _) => swallow.andThen(done(c.toInt))
               case ControlSequenceToken(name, _) if name.size == 1 => swallow.andThen(done(name(0).toInt))
-              case _ => throwError[Token](TeXMouthException("character or single character constrol sequence expected", next.pos))
+              case _ => throwError[Token](new TeXMouthException("character or single character constrol sequence expected", next.pos))
             }
           } yield i
 

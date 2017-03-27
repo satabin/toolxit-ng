@@ -20,19 +20,16 @@ import util._
 /** @author Lucas Satabin
  *
  */
-class TeXException(msg: String, inner: Throwable) extends Exception(msg, inner) {
-  def this() = this(null, null)
-  def this(msg: String) = this(msg, null)
+class TeXException(val pos: Position, val msg: String, inner: Throwable) extends Exception(msg, inner) {
+  def this(pos: Position) = this(pos, null, null)
+  def this(pos: Position, msg: String) = this(pos, msg, null)
+}
+object TeXException {
+  def unapply(t: Throwable): Option[(String, Position)] =
+    t match {
+      case e: TeXException => Some(e.msg -> e.pos)
+      case _               => None
+    }
 }
 
-class TeXInternalException(msg: String, inner: Throwable) extends Exception(msg, inner) {
-  def this() = this(null, null)
-  def this(msg: String) = this(msg, null)
-}
-
-class ControlSequenceException(msg: String) extends TeXException(msg)
-
-case class EOIException(line: Int, column: Int) extends Exception {
-  def this(p: Position) =
-    this(p.line, p.column)
-}
+case class EOIException(override val pos: Position) extends TeXException(pos)

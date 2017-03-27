@@ -656,13 +656,16 @@ trait TeXMacros {
       env.css(n) match {
         case Some(TeXMacro(name, parameters, replacement, _, _)) =>
           toTokens(f"macro:${parameters.map(_.toString(env)).mkString}->${replacement.reverseMap(_.toString(env)).mkString}")
+        case Some(TeXCounter(name, cnt)) =>
+          toTokens(f"counter:${cnt.toInt}")
+        case Some(TeXDimension(name, dim)) =>
+          toTokens(f"dimension:${dim.toInt}")
         case Some(_) =>
           toTokens(f"${env.escapechar}$n")
         case None =>
           toTokens("undefined")
       }
-    case _ =>
-      throw new TeXInternalException("this case should never occur.")
+      throw new TeXMouthException("THIS IS A BUG. this case should never occur.", t.pos)
   }
 
   def expandMeaning: Processor[Token] =
