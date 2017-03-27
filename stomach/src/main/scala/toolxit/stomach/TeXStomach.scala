@@ -43,7 +43,7 @@ class TeXStomach(env: TeXEnvironment, out: PrintWriter) extends Iteratees[Comman
   def assign(assignment: Assignment): Unit = assignment match {
     case CounterAssignment(cnt, v, mode, global) =>
       env.count(cnt, mode, global) = v
-    case ass @ DimensionAssignment(dim, v, mode, global) =>
+    case DimensionAssignment(dim, v, mode, global) =>
       env.dimen(dim, mode, global) = v
     case IntegerParameterAssignment(name, v, mode, global) =>
       env.integerParameter(name, mode, global) = v
@@ -53,7 +53,7 @@ class TeXStomach(env: TeXEnvironment, out: PrintWriter) extends Iteratees[Comman
       env.css(name, global) = TeXChar(name, char)
     case CounterDefinition(name, number, global) =>
       env.css(name, global) = TeXCounter(name, number)
-    case d @ DimensionDefinition(name, number, global) =>
+    case DimensionDefinition(name, number, global) =>
       env.css(name, global) = TeXDimension(name, number)
     case LetAssignment(name, alias, global) => alias match {
       case cs @ ControlSequenceToken(alias, _) => env.css(alias) match {
