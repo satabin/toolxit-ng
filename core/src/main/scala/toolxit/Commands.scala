@@ -84,3 +84,6 @@ case class CharacterDefinition(name: String, c: Char, global: Boolean) extends A
 
 /** A `\let` assignment. */
 case class LetAssignment(name: String, meaning: Token, global: Boolean) extends Assignment
+
+/** Assigns the content of next line in the input with given number to the given control sequence. */
+case class Read(inputno: Byte, cs: String, global: Boolean) extends Assignment

@@ -27,7 +27,7 @@ trait TeXAssignments {
         true
       case CountdefToken(_) =>
         true
-      case Primitive("count" | "advance" | "multiply" | "divide" | "chardef" | "let" | "futurelet") =>
+      case Primitive("count" | "advance" | "multiply" | "divide" | "chardef" | "let" | "futurelet" | "read") =>
         true
       case Primitives.Codename(_) =>
         true
@@ -47,6 +47,8 @@ trait TeXAssignments {
     } yield ()
 
   val by = keyword("by", true)
+
+  val to = keyword("to", false)
 
   val controlsequence: Processor[String] =
     raw.flatMap {
@@ -137,7 +139,17 @@ trait TeXAssignments {
           c <- char(tok.pos)
           () <- equals
           cat <- catNumber(tok.pos)
-        } yield CategoryAssignment(c, cat, global)
+        } yield CategoryAssignment(c, Category.withValue(cat), global)
+
+      // read
+      case tok @ ControlSequenceToken("read", _) =>
+        for {
+          () <- swallow
+          i <- catNumber(tok.pos)
+          () <- to
+          () <- spaces
+          cs <- controlsequence
+        } yield Read(i, cs, global)
 
     }
 

@@ -124,10 +124,10 @@ trait TeXNumbers {
   def char(pos: Position): Processor[Char] =
     number.map(_.toChar)
 
-  def catNumber(pos: Position): Processor[Category] =
+  def catNumber(pos: Position): Processor[Byte] =
     number.flatMap { i =>
       if (i >= 0 && i <= 15)
-        done(Category.withValue(i))
+        done(i.toByte)
       else
         throwError(new TeXMouthException(f"Category number (0-15) expected but got $i", pos))
     }
