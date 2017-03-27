@@ -19,12 +19,13 @@ package mouth
 trait TeXGlues {
   this: TeXMouth =>
 
-  val internalGlue: Processor[Glue] = ???
+  lazy val internalGlue: Processor[Glue] = ???
 
   // extractors
 
   object StartsInternalGlue {
-    def unapply(token: Token): Boolean = ???
+    def unapply(token: Token): Boolean =
+      false
   }
 
 }

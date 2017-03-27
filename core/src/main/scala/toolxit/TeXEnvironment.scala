@@ -390,6 +390,16 @@ class TeXEnvironment(_jobname: String) {
      */
     def update(number: Byte, value: Dimension) =
       locals.dimensions(number) = value
+
+    def update(number: Byte, mode: AssignmentMode, global: Boolean, value: Int): Unit = {
+      val dims = if (global) root.dimensions else locals.dimensions
+      mode match {
+        case AssignmentMode.Set      => dims(number) = Dimension(value)
+        case AssignmentMode.Advance  => dims(number) = dims.getOrElse(number, ZeroDimen) + value
+        case AssignmentMode.Multiply => dims(number) = dims.getOrElse(number, ZeroDimen) * value
+        case AssignmentMode.Divide   => dims(number) = dims.getOrElse(number, ZeroDimen) / value
+      }
+    }
   }
 
   /** Exposes dimension parameter register management functions.

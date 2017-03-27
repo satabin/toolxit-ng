@@ -140,6 +140,10 @@ trait TeXNumbers {
           for (() <- swallow)
             yield c.toInt
 
+        case ControlSequenceToken(CountDef(i), _) =>
+          for (() <- swallow)
+            yield i
+
         case Primitives.IntegerParameter(name) =>
           for (() <- swallow)
             yield env.integerParameter(name)
@@ -273,6 +277,7 @@ trait TeXNumbers {
         case Primitives.Codename(_)              => true
         case Primitives.InternalInteger(_)       => true
         case ControlSequenceToken(CharDef(_), _) => true
+        case CountdefToken(_)                    => true
         case _                                   => false
       }
   }
@@ -281,6 +286,13 @@ trait TeXNumbers {
     def unapply(name: String): Option[Char] = env.css(name) match {
       case Some(TeXChar(_, c)) => Some(c)
       case _                   => None
+    }
+  }
+
+  object CountDef {
+    def unapply(name: String): Option[Int] = env.css(name) match {
+      case Some(TeXCounter(_, cnt)) => Some(env.count(cnt))
+      case _                        => None
     }
   }
 

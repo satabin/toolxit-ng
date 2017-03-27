@@ -215,6 +215,7 @@ trait TeXDimensions {
         case Primitives.SpecialDimension(_)       => true
         case Primitives.InternalDimension(_)      => true
         case ControlSequenceToken(DimenDef(_), _) => true
+        case _                                    => false
       }
   }
 

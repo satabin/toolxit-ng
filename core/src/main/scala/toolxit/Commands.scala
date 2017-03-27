@@ -76,6 +76,9 @@ case class IntegerParameterAssignment(name: String, value: Int, mode: Assignment
 /** A counter assignment command. */
 case class CounterAssignment(id: Byte, value: Int, mode: AssignmentMode, global: Boolean) extends Assignment
 
+/** A dimension assignment command (in sp). */
+case class DimensionAssignment(id: Byte, value: Int, mode: AssignmentMode, global: Boolean) extends Assignment
+
 /** A character category assignment */
 case class CategoryAssignment(c: Char, cat: Category, global: Boolean) extends Assignment
 
@@ -84,6 +87,9 @@ case class CharacterDefinition(name: String, c: Char, global: Boolean) extends A
 
 /** A counter definition. */
 case class CounterDefinition(name: String, number: Byte, global: Boolean) extends Assignment
+
+/** A dimension definition. */
+case class DimensionDefinition(name: String, number: Byte, global: Boolean) extends Assignment
 
 /** A `\let` assignment. */
 case class LetAssignment(name: String, meaning: Token, global: Boolean) extends Assignment

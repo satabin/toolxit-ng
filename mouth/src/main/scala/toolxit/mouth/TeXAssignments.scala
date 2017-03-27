@@ -27,7 +27,9 @@ trait TeXAssignments {
         true
       case CountdefToken(_) =>
         true
-      case Primitive("count" | "advance" | "multiply" | "divide" | "chardef" | "countdef" | "let" | "futurelet" | "read") =>
+      case DimendefToken(_) =>
+        true
+      case Primitive("count" | "dimen" | "advance" | "multiply" | "divide" | "chardef" | "countdef" | "dimendef" | "let" | "futurelet" | "read") =>
         true
       case Primitives.Codename(_) =>
         true
@@ -76,6 +78,15 @@ trait TeXAssignments {
           i <- bit8(tok.pos)
         } yield CounterDefinition(cs, i, global)
 
+      // dimendef
+      case tok @ Primitive("dimendef") =>
+        for {
+          () <- swallow
+          cs <- controlsequence
+          () <- equals
+          i <- bit8(tok.pos)
+        } yield DimensionDefinition(cs, i, global)
+
       // let and futurelet
       case tok @ Primitive("let") =>
         for {
@@ -121,6 +132,21 @@ trait TeXAssignments {
           () <- equals
           i <- number
         } yield CounterAssignment(cnt, i, AssignmentMode.Set, global)
+
+      case tok @ ControlSequenceToken("dimen", _) =>
+        for {
+          () <- swallow
+          dim <- bit8(tok.pos)
+          () <- equals
+          d <- dimen
+        } yield DimensionAssignment(dim, d.sps, AssignmentMode.Set, global)
+
+      case DimendefToken(dim) =>
+        for {
+          () <- swallow
+          () <- equals
+          d <- dimen
+        } yield DimensionAssignment(dim, d.sps, AssignmentMode.Set, global)
 
       // arithmetic
       case ControlSequenceToken("advance", _) =>
@@ -186,6 +212,20 @@ trait TeXAssignments {
             i <- number
           } yield CounterAssignment(cnt, i, mode, global)
 
+        case tok @ DimendefToken(dim) =>
+          for {
+            () <- swallow
+            _ <- by
+            i <- if (mode == AssignmentMode.Set) dimen.map(_.sps) else number
+          } yield DimensionAssignment(dim, i, mode, global)
+        case tok @ ControlSequenceToken("dimen", _) =>
+          for {
+            () <- swallow
+            dim <- bit8(tok.pos)
+            _ <- by
+            i <- if (mode == AssignmentMode.Set) dimen.map(_.sps) else number
+          } yield DimensionAssignment(dim, i, mode, global)
+
         case tok =>
           throwError[Token](new TeXMouthException("variable expected", tok.pos))
       }
@@ -197,6 +237,17 @@ trait TeXAssignments {
         env.css(name) match {
           case Some(TeXCounter(_, c)) => Some(c)
           case _                      => None
+        }
+      case _ => None
+    }
+  }
+
+  object DimendefToken {
+    def unapply(token: Token): Option[Byte] = token match {
+      case ControlSequenceToken(name, _) =>
+        env.css(name) match {
+          case Some(TeXDimension(_, d)) => Some(d)
+          case _                        => None
         }
       case _ => None
     }
