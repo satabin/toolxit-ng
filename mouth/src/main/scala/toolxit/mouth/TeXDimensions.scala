@@ -62,16 +62,20 @@ trait TeXDimensions {
             t <- optTrue
             u <- physicalUnit
             _ <- optSpace
-          } yield u match {
-            case "pt" => Dimension.ofPoint _
-            case "pc" => Dimension.ofPica _
-            case "in" => Dimension.ofInch _
-            case "bp" => Dimension.ofBigPoint _
-            case "cm" => Dimension.ofCentimeter _
-            case "mm" => Dimension.ofMillimeter _
-            case "dd" => Dimension.ofDidotPoint _
-            case "cc" => Dimension.ofCicero _
-            case "sp" => Dimension.ofScaledPoint _
+          } yield {
+            val f = u match {
+              case "pt" => Dimension.ofPoint _
+              case "pc" => Dimension.ofPica _
+              case "in" => Dimension.ofInch _
+              case "bp" => Dimension.ofBigPoint _
+              case "cm" => Dimension.ofCentimeter _
+              case "mm" => Dimension.ofMillimeter _
+              case "dd" => Dimension.ofDidotPoint _
+              case "cc" => Dimension.ofCicero _
+              case "sp" => Dimension.ofScaledPoint _
+            }
+            // apply magnification if `true' is given
+            if (t) (d: Double) => f(d * 1000 / env.integerParameter("mag")) else f
           }
       }
     } yield u

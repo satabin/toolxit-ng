@@ -764,7 +764,8 @@ class TeXEnvironment(_jobname: String) {
   category('%') = Category.COMMENT_CHARACTER
   category('\\') = Category.ESCAPE_CHARACTER
   category(127) = Category.INVALID_CHARACTER
-
+  // integer parameters
+  integerParameter("mag") = 1000
 }
 
 object TeXEnvironment {
