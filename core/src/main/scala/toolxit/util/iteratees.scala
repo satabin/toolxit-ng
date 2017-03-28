@@ -28,11 +28,11 @@ abstract class Iteratees[Elt] {
   }
 
   @inline
-  val exnEos: Exception =
+  def exnEos: Exception =
     new Exception("End of stream")
 
   @inline
-  val exnDivergent: Exception =
+  def exnDivergent: Exception =
     new Exception("Divergent iteratee")
 
   @inline

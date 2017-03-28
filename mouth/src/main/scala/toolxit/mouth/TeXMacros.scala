@@ -35,6 +35,9 @@ trait TeXMacros {
    */
   def macroDef(long: Boolean, outer: Boolean, global: Boolean): Processor[(Boolean, TeXMacro)] = {
 
+    val read = onEOI("End of input reached while parsing macro parameters")(this.read)
+    val raw = onEOI("End of input reached while parsing macro parameters")(this.raw)
+
     // a macro name is an unexpanded control sequence
     val name: Processor[String] =
       raw.flatMap {
@@ -166,6 +169,8 @@ trait TeXMacros {
    *  reverse order.
    */
   private def arguments(long: Boolean, parameters: List[Token]): Processor[List[List[Token]]] = {
+    val read = onEOI("End of input is not allowed in macro parameter list")(this.read)
+    val raw = onEOI("End of input is not allowed in macro parameter list")(this.raw)
     def loop(parameters: List[Token], stop: Option[Token], localAcc: List[Token], acc: List[List[Token]]): Processor[List[List[Token]]] = stop match {
       case Some(stop) =>
         // we must read until the stop token has been reached
@@ -223,10 +228,8 @@ trait TeXMacros {
               () <- accept(token)
               res <- loop(rest, None, Nil, acc)
             } yield res
-          case (token @ GroupToken(_, _, _)) :: _ =>
-            throwError(new TeXMouthException("Groups are not allowed in macro parameter list", token.pos))
-          case (token @ EOIToken()) :: _ =>
-            throwError(new TeXMouthException("End of input is not allowed in macro parameter list", token.pos))
+          case token :: _ =>
+            throwError(new TeXMouthException(f"Unexpected $token in macro parameter list", token.pos))
         }
 
     }
@@ -261,7 +264,9 @@ trait TeXMacros {
       t <- read
     } yield t
 
-  def expandIf: Processor[Token] =
+  def expandIf: Processor[Token] = {
+    val read = onEOI("End of input reached when parsing if")(this.read)
+    val raw = onEOI("End of input reached when parsing if")(this.raw)
     raw.flatMap {
       case ControlSequenceToken("ifnum", _) =>
         for {
@@ -330,6 +335,7 @@ trait TeXMacros {
       case t =>
         throwError(new TeXMouthException("if construct expected", t.pos))
     }
+  }
 
   private def rel[T: Ordering](): Processor[(T, T) => Boolean] = {
     val ordering = implicitly[Ordering[T]]
@@ -352,6 +358,8 @@ trait TeXMacros {
    * `\else` or `\fi`. Otherwise, skip the first branch and keep the (unexpanded) tokens until the next matching `\fi`.
    * User defined ifs are taken into account when skipping over an if-branch to pair ifs and fis together. */
   private def ifBody(cond: Boolean): Processor[Unit] = {
+    val read = onEOI("End of input reached when parsing if body")(this.read)
+    val raw = onEOI("End of input reached when parsing if body")(this.raw)
     def then_(lvl: Int, acc: List[Token]): Processor[List[Token]] =
       raw.flatMap {
         case ControlSequenceToken("else" | "fi", _) if lvl == 0 =>
@@ -408,6 +416,8 @@ trait TeXMacros {
   }
 
   private def caseBody(n: Int): Processor[Unit] = {
+    val read = onEOI("End of input reached when parsing if body")(this.read)
+    val raw = onEOI("End of input reached when parsing if body")(this.raw)
     import scala.collection.mutable.Builder
     def cases(lvl: Int, acc: Builder[List[Token], Vector[List[Token]]], current: List[Token]): Processor[Vector[List[Token]]] =
       raw.flatMap {

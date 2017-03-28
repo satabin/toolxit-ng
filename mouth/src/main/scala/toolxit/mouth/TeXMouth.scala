@@ -111,9 +111,14 @@ class TeXMouth(val env: TeXEnvironment)
   /** Returns the next unexpanded token */
   lazy val raw: Processor[Token] = peek.flatMap {
     case Some(t) => done(t)
-    case None =>
-      throwError(new EOIException(env.lastPosition))
+    case None    => done(EOIToken().atPos(env.lastPosition))
   }
+
+  def onEOI(msg: String)(it: Processor[Token]): Processor[Token] =
+    it.flatMap {
+      case t @ EOIToken() => throwError(new TeXMouthException(msg, t.pos))
+      case t              => done(t)
+    }
 
   /** Returns the next token, expanded if necessary */
   protected[this] lazy val read: Processor[Token] =
@@ -317,6 +322,7 @@ class TeXMouth(val env: TeXEnvironment)
    *  Typically, when parsing a group as a replacement text of a macro definition, they are not allowed.
    */
   def group(reverted: Boolean, allowOuter: Boolean, allowPar: Boolean, withParams: Boolean): Processor[GroupToken] = {
+    val read = onEOI("End of input reached while parsing group")(this.read)
     def loop(level: Int, open: Token, acc: List[Token]): Processor[GroupToken] = read.flatMap {
       case tok @ CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
         for {
@@ -367,6 +373,7 @@ class TeXMouth(val env: TeXEnvironment)
           tok <- parameter(tok)
           g <- loop(level, open, tok :: acc)
         } yield g
+
       case tok =>
         for {
           // any other character is consumed
