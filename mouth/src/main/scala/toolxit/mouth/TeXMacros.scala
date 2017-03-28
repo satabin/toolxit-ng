@@ -264,9 +264,35 @@ trait TeXMacros {
       t <- read
     } yield t
 
-  def expandIf: Processor[Token] = {
+  val expandIf: Processor[Token] = {
     val read = onEOI("End of input reached when parsing if")(this.read)
     val raw = onEOI("End of input reached when parsing if")(this.raw)
+
+    def charcode(t: Token): Char = t match {
+      case CharacterToken(c, _) => c
+      case ControlSequenceToken(name, _) => env.css(name) match {
+        case Some(TeXCsAlias(_, CharacterToken(c, _))) => c
+        case _                                         => 255.toChar
+      }
+      case _ => 255.toChar
+    }
+
+    def catcode(t: Token): Int = t match {
+      case CharacterToken(_, c) => c.value
+      case ControlSequenceToken(name, _) => env.css(name) match {
+        case Some(TeXCsAlias(_, CharacterToken(_, c))) => c.value
+        case _                                         => 16.toChar
+      }
+      case _ => 16.toChar
+    }
+
+    def agree(t1: Token, t2: Token): Boolean = (t1, t2) match {
+      case (CharacterToken(_, _), CharacterToken(_, _)) => t1 == t2
+      case (Primitive(_), Primitive(_)) => t1 == t2
+      case (ControlSequenceToken(cs1, _), ControlSequenceToken(cs2, _)) => env.css(cs1) == env.css(cs2)
+      case _ => false
+    }
+
     raw.flatMap {
       case ControlSequenceToken("ifnum", _) =>
         for {
@@ -321,6 +347,53 @@ trait TeXMacros {
         for {
           () <- swallow
           () <- ifBody(env.mode == Mode.InternalVerticalMode || env.mode == Mode.RestrictedHorizontalMode || env.mode == Mode.MathMode)
+          t <- read
+        } yield t
+
+      case ControlSequenceToken("if", _) =>
+        for {
+          () <- swallow
+          t1 <- read
+          () <- swallow
+          t2 <- read
+          () <- swallow
+          () <- ifBody(charcode(t1) == charcode(t2))
+          t <- read
+        } yield t
+
+      case ControlSequenceToken("ifcat", _) =>
+        for {
+          () <- swallow
+          t1 <- read
+          () <- swallow
+          t2 <- read
+          () <- swallow
+          () <- ifBody(catcode(t1) == catcode(t2))
+          t <- read
+        } yield t
+
+      case ControlSequenceToken("ifx", _) =>
+        for {
+          () <- swallow
+          t1 <- raw
+          () <- swallow
+          t2 <- raw
+          () <- swallow
+          () <- ifBody(agree(t1, t2))
+          t <- read
+        } yield t
+
+      case ControlSequenceToken("iftrue", _) =>
+        for {
+          () <- swallow
+          () <- ifBody(true)
+          t <- read
+        } yield t
+
+      case ControlSequenceToken("iffalse", _) =>
+        for {
+          () <- swallow
+          () <- ifBody(true)
           t <- read
         } yield t
 
