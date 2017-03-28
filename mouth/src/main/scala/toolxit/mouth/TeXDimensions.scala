@@ -37,7 +37,10 @@ trait TeXDimensions {
             yield (d: Double) => d * dim
         case StartsInternalGlue() =>
           for (glu <- internalGlue)
-            yield (d: Double) => d * glu.value.sp
+            yield (d: Double) => d * glu.value
+        case _ =>
+          // TODO add font handling first so that font  parameters are taken into account here
+          ???
       }
     } yield u
   }
@@ -135,6 +138,30 @@ trait TeXDimensions {
       }
     } yield d
 
+  val factor: Processor[Double] =
+    for {
+      tok <- read
+      d <- tok match {
+        case StartsInternalInteger() => internalInteger.map(_.toDouble)
+        case CharacterToken(c, Category.OTHER_CHARACTER) if c.isDigit =>
+          // an integer may well be a decimal number if followed b a period or comma
+          for {
+            i <- integerConstant(0)
+            next <- read
+            d <- next match {
+              case CharacterToken('.' | ',', Category.OTHER_CHARACTER) =>
+                // this is a decimal constant after all
+                decimalConstant(i)
+              case _ =>
+                // nope, finally it was just an integer, we can parse the unit
+                done(i.toDouble)
+            }
+          } yield d
+        case CharacterToken('.' | ',', Category.OTHER_CHARACTER) =>
+          decimalConstant(0)
+      }
+    } yield d
+
   val normalDimen: Processor[Dimension] =
     for {
       tok <- read
@@ -142,33 +169,15 @@ trait TeXDimensions {
         case StartsInternalDimen() => internalDimension
         case StartsNormalInteger() =>
           // normal integer + unit
-          tok match {
-            case CharacterToken(c, Category.OTHER_CHARACTER) if c.isDigit =>
-              // an integer may well be a decimal number if followed b a period or comma
-              for {
-                i <- integerConstant(0)
-                next <- read
-                d <- next match {
-                  case CharacterToken('.' | ',', Category.OTHER_CHARACTER) =>
-                    // this is a decimal constant after all
-                    for {
-                      c <- decimalConstant(i)
-                      toDim <- unitOfMeasure
-                    } yield toDim(c)
-                  case _ =>
-                    // nope, finally it was just an integer, we can parse the unit
-                    for (toDim <- unitOfMeasure)
-                      yield toDim(i)
-                }
-              } yield d
-          }
-        case CharacterToken('.' | ',', Category.OTHER_CHARACTER) =>
           for {
-            c <- decimalConstant(0)
+            f <- factor
             toDim <- unitOfMeasure
-          } yield toDim(c)
+          } yield toDim(f)
       }
     } yield d
+
+  lazy val normalMudimen: Processor[Dimension] =
+    ???
 
   val dimen: Processor[Dimension] =
     for {
@@ -177,9 +186,18 @@ trait TeXDimensions {
       d <- t match {
         case StartsNormalDimen() => normalDimen
         // TODO add support for coerced dimensions
-        case _                   => throwError[Token](new TeXMouthException(f"DImension expected but got $t", t.pos))
+        case _                   => throwError[Token](new TeXMouthException(f"Dimension expected but got $t", t.pos))
       }
     } yield sign * d
+
+  val mudimen: Processor[Dimension] =
+    for {
+      sign <- signs()
+      t <- read
+      md <- t match {
+        case StartsNormalMudimen() => normalMudimen
+      }
+    } yield ???
 
   // extractors
 
@@ -187,6 +205,15 @@ trait TeXDimensions {
     def unapply(token: Token): Boolean =
       token match {
         case StartsInternalDimen() => true
+        case StartsNormalInteger() => true
+        case CharacterToken('.' | ',', Category.OTHER_CHARACTER) => true
+        case _ => false
+      }
+  }
+
+  object StartsNormalMudimen {
+    def unapply(token: Token): Boolean =
+      token match {
         case StartsNormalInteger() => true
         case CharacterToken('.' | ',', Category.OTHER_CHARACTER) => true
         case _ => false

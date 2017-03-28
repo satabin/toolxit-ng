@@ -23,15 +23,23 @@ package dimen
  */
 case class Dimension(sps: Int) extends Ordered[Dimension] {
 
+  @inline
   def compare(that: Dimension): Int =
     this.sps - that.sps
 
+  @inline
+  def +(that: Dimension): Dimension =
+    Dimension(this.sps + that.sps)
+
+  @inline
   def +(that: Int): Dimension =
     Dimension(this.sps + that)
 
+  @inline
   def *(that: Int): Dimension =
     Dimension(this.sps * that)
 
+  @inline
   def /(that: Int): Dimension =
     Dimension(this.sps / that)
 
@@ -68,5 +76,3 @@ object Dimension {
   def ofCicero(cc: Double): Dimension = ofDidotPoint(cc * 12f)
 
 }
-
-case class FilDimension(factor: Double, fil: FilUnit)

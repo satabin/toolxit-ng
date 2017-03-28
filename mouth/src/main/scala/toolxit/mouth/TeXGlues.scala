@@ -16,10 +16,44 @@
 package toolxit
 package mouth
 
+import glue._
+
 trait TeXGlues {
   this: TeXMouth =>
 
   lazy val internalGlue: Processor[Glue] = ???
+
+  val plus = keyword("plus", true)
+  val minus = keyword("minus", true)
+
+  val stretch: Processor[Amount] =
+    for {
+      () <- spaces
+      p <- plus
+      s <- if (p) ??? else done(ZeroAmount)
+    } yield s
+
+  val shrink: Processor[Amount] =
+    for {
+      () <- spaces
+      m <- minus
+      s <- if (m) ??? else done(ZeroAmount)
+    } yield s
+
+  val glue: Processor[Glue] =
+    for {
+      sign <- signs()
+      t <- read
+      g <- t match {
+        case StartsInternalGlue() => internalGlue.map(sign * _)
+        case _ =>
+          for {
+            va <- dimen
+            st <- stretch
+            sh <- shrink
+          } yield Glue(sign * va, st, sh)
+      }
+    } yield ???
 
   // extractors
 

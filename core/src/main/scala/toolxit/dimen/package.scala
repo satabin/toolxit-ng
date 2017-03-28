@@ -67,24 +67,4 @@ package object dimen {
 
   }
 
-  implicit class IntDimenOps(val i: Int) extends AnyVal {
-    @inline
-    def *(dim: Dimension) = dim.copy(sps = (dim.sps * i))
-  }
-
-  implicit class IntGlueOps(val i: Int) extends AnyVal {
-    @inline
-    def *(glue: Glue) = Glue(i * glue.value, i * glue.stretch, i * glue.shrink)
-  }
-
-  implicit class DoubleDimenOps(val d: Double) extends AnyVal {
-    @inline
-    def *(dim: Dimension) = dim.copy(sps = (dim.sps * d).toInt)
-  }
-
-  implicit class DoubleGlueOps(val d: Double) extends AnyVal {
-    @inline
-    def *(glue: Glue) = Glue((d * glue.value).toInt, (d * glue.stretch).toInt, (d * glue.shrink).toInt)
-  }
-
 }

@@ -16,6 +16,7 @@
 package toolxit
 
 import dimen._
+import glue._
 
 import util._
 
@@ -70,7 +71,8 @@ class TeXEnvironment(_jobname: String) {
 
     val integerParameters = Map.empty[String, Int]
     val dimensionParameters = Map.empty[String, Dimension]
-    // TODO other register types
+    val glueParameters = Map.empty[String, Glue]
+    val muglueParameters = Map.empty[String, Muglue]
 
   }
 
@@ -450,6 +452,36 @@ class TeXEnvironment(_jobname: String) {
      */
     def update(number: Byte, value: Glue): Unit =
       locals.glues(number) = value
+
+    def update(number: Byte, global: Boolean, value: Glue): Unit = {
+      val glues = if (global) root.glues else locals.glues
+      glues(number) = value
+    }
+  }
+
+  /** Exposes glue parameter register management functions.
+   *
+   *  @group Registers
+   */
+  object glueParameter {
+
+    /** Finds and returns the glue parameter register value identified by its register number
+     *  in the current environment.
+     *  The default value of a count register is `0`.
+     */
+    def apply(name: String): Glue =
+      lookupRegister(name, (_.glueParameters), locals).getOrElse(ZeroGlue)
+
+    /** Sets the value of the glue parameter register in the current environment.
+     *  This value will be reset to the previous value when leaving the current group.
+     */
+    def update(name: String, value: Glue) =
+      locals.glueParameters(name) = value
+
+    def update(name: String, global: Boolean, value: Glue): Unit = {
+      val params = if (global) root.glueParameters else locals.glueParameters
+      params(name) = value
+    }
   }
 
   /** Exposes muglue register management functions.
@@ -470,6 +502,35 @@ class TeXEnvironment(_jobname: String) {
      */
     def update(number: Byte, value: Muglue) =
       locals.muglues(number) = value
+
+    def update(number: Byte, global: Boolean, value: Muglue): Unit = {
+      val muglues = if (global) root.muglues else locals.muglues
+      muglues(number) = value
+    }
+  }
+  /** Exposes muglue parameter register management functions.
+   *
+   *  @group Registers
+   */
+  object muglueParameter {
+
+    /** Finds and returns the muglue parameter register value identified by its register number
+     *  in the current environment.
+     *  The default value of a count register is `0`.
+     */
+    def apply(name: String): Muglue =
+      lookupRegister(name, (_.muglueParameters), locals).getOrElse(ZeroMuglue)
+
+    /** Sets the value of the muglue parameter register in the current environment.
+     *  This value will be reset to the previous value when leaving the current group.
+     */
+    def update(name: String, value: Muglue) =
+      locals.muglueParameters(name) = value
+
+    def update(name: String, global: Boolean, value: Muglue): Unit = {
+      val params = if (global) root.muglueParameters else locals.muglueParameters
+      params(name) = value
+    }
   }
 
   /** Exposes font register management functions.

@@ -16,6 +16,39 @@
 
 package object toolxit {
 
+  import dimen._
+  import glue._
+
   type Parameter = Either[ParameterToken, List[Token]]
+
+  implicit class IntOps(val i: Int) extends AnyVal {
+    @inline
+    def *(dim: Dimension): Dimension = dim.copy(sps = (dim.sps * i))
+
+    @inline
+    def *(glue: Glue): Glue = Glue(*(glue.value), *(glue.stretch), *(glue.shrink))
+
+    @inline
+    def *(amount: Amount): Amount = amount match {
+      case DimenAmount(dim)          => DimenAmount(*(dim))
+      case FillAmount(factor, level) => FillAmount(i * factor, level)
+    }
+
+  }
+
+  implicit class DoubleOps(val d: Double) extends AnyVal {
+    @inline
+    def *(dim: Dimension): Dimension = dim.copy(sps = (dim.sps * d).toInt)
+
+    @inline
+    def *(glue: Glue): Glue = Glue(*(glue.value), *(glue.stretch), *(glue.shrink))
+
+    @inline
+    def *(amount: Amount): Amount = amount match {
+      case DimenAmount(dim)          => DimenAmount(*(dim))
+      case FillAmount(factor, level) => FillAmount(d * factor, level)
+    }
+
+  }
 
 }
