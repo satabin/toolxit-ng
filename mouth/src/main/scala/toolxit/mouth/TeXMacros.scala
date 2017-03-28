@@ -481,7 +481,8 @@ trait TeXMacros {
     for {
       cs <- cases(0, Vector.newBuilder[List[Token]], Nil)
       e <- else_(0, Nil)
-    } yield cs.applyOrElse(n, e)
+      () <- pushback(cs.applyOrElse(n, (_: Int) => e))
+    } yield ()
   }
 
   def expandInput: Processor[Token] = {
