@@ -203,7 +203,7 @@ class TeXMouth(val env: TeXEnvironment)
           case CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
             env.enterGroup
             for {
-              GroupToken(_, tokens, _) <- group(true, true, true, false)
+              GroupToken(_, tokens, _) <- group(true, true, true, false, true)
               () <- pushback(tokens)
               () = env.leaveGroup
               c <- command
@@ -321,15 +321,17 @@ class TeXMouth(val env: TeXEnvironment)
    *  this group.
    *  Typically, when parsing a group as a replacement text of a macro definition, they are not allowed.
    */
-  def group(reverted: Boolean, allowOuter: Boolean, allowPar: Boolean, withParams: Boolean): Processor[GroupToken] = {
+  def group(reverted: Boolean, allowOuter: Boolean, allowPar: Boolean, withParams: Boolean, localScope: Boolean): Processor[GroupToken] = {
     val read = onEOI("End of input reached while parsing group")(this.read)
     def loop(level: Int, open: Token, acc: List[Token]): Processor[GroupToken] = read.flatMap {
       case tok @ CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
         for {
           // start a new nested group, consume the opening token
           () <- swallow
+          () = env.enterGroup
           // and parses the rest adding the opening token to the accumulator
           g <- loop(level + 1, open, tok :: acc)
+          () = env.leaveGroup
         } yield g
 
       case tok @ CharacterToken(_, Category.END_OF_GROUP) if level == 0 =>
@@ -389,8 +391,10 @@ class TeXMouth(val env: TeXEnvironment)
           // ok, so we start a new group
           // consume the opening token
           () <- swallow
+          () = if (localScope) env.enterGroup
           // and loop until this group is correctly closed
           g <- loop(0, tok, Nil)
+          () = if (localScope) env.leaveGroup
         } yield g
       case tok =>
         // this is not an opening group, meaning, this is an error

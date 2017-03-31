@@ -126,7 +126,7 @@ trait TeXMacros {
       val oldrepl = env.inReplacement
       env.expanding = expanded
       env.inReplacement = true
-      group(true, false, true, true).map {
+      group(true, false, true, true, false).map {
         case GroupToken(_, tokens, _) =>
           if (appendBrace)
             CharacterToken('{', Category.BEGINNING_OF_GROUP) :: tokens
@@ -182,7 +182,7 @@ trait TeXMacros {
             throwError(new TeXMouthException("Runaway argument. new paragraph is not allowed in the parameter list", tok.pos))
           case CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
             for {
-              g <- group(true, long, false, false)
+              g <- group(true, long, false, false, false)
               p <- loop(parameters, Some(stop), g :: localAcc, acc)
             } yield p
           case tok if tok == stop =>
@@ -207,7 +207,7 @@ trait TeXMacros {
                   // an undelimited parameter
                   t <- read.flatMap {
                     case CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
-                      for (GroupToken(_, tokens, _) <- group(true, long, false, false))
+                      for (GroupToken(_, tokens, _) <- group(true, long, false, false, false))
                         yield tokens
                     case tok @ ControlSequenceToken(name, _) if env.css.isOuter(name) =>
                       throwError(new TeXMouthException("Outer macros are not authorized in macro parameter", tok.pos))
