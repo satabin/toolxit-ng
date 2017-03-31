@@ -71,29 +71,25 @@ object Enumerator {
     case i             => Try(i)
   }
 
-  /** Feeds the iteratee with the string content of a reader, character by character. */
+  /** Feeds the iteratee with the string content of a reader, line by line.
+   *  New lines are represented by the `\n` character and spaces at the end of lines are trimmed.
+   */
   def reader[A](reader: Reader, chunkSize: Int = 1024): Enumerator[(Char, Int, Int), A] = {
     case Cont(None, k) =>
-      def loop(line: Int, column: Int, reader: BufferedReader, k: K[(Char, Int, Int), A], p: Array[Char]): Try[Iteratee[(Char, Int, Int), A]] =
-        Try(reader.read(p, 0, chunkSize)) match {
-          case Success(-1) => feedI(k, Eos(None))
-          case Success(n) =>
-            val (l, c, chars) = p.take(n).foldLeft((line, column, Seq.empty[(Char, Int, Int)])) {
-              case ((line, column, chars), '\n') =>
-                (line + 1, 1, chars :+ ('\n', line, column))
-              case ((line, column, chars), c) =>
-                (line, column + 1, chars :+ (c, line, column))
-            }
-            feedI(k, Chunk(chars)).flatMap(check(l, c, reader, p))
+      def loop(line: Int, reader: BufferedReader, k: K[(Char, Int, Int), A]): Try[Iteratee[(Char, Int, Int), A]] =
+        Try(reader.readLine()) match {
+          case Success(null) => feedI(k, Eos(None))
+          case Success(s) =>
+            feedI(k, Chunk(s.replaceAll("\\s+$", "").zipWithIndex.map { case (c, idx) => (c, line, idx + 1) })).flatMap(check(line + 1, reader))
           case Failure(e: Exception) => feedI(k, Eos(Some(e)))
           case Failure(t)            => throw t
         }
-      def check(line: Int, column: Int, reader: BufferedReader, p: Array[Char])(it: Iteratee[(Char, Int, Int), A]) = it match {
-        case Cont(None, k) => loop(line, column, reader, k, p)
+      def check(line: Int, reader: BufferedReader)(it: Iteratee[(Char, Int, Int), A]) = it match {
+        case Cont(None, k) => loop(line, reader, k)
         case i             => Try(i)
       }
       for {
-        r <- loop(1, 1, new BufferedReader(reader, chunkSize), k, Array.ofDim[Char](chunkSize))
+        r <- loop(1, new BufferedReader(reader, chunkSize), k)
         _ <- Try(Try(reader.close).getOrElse(Unit))
       } yield r
     case i => Try(i)

@@ -102,9 +102,9 @@ class Xonsole {
             terminal.writer.println("(Please type a command or say `\\end')")
           } else {
 
-            val enumerator = Enumerator.seq[(Char, Int, Int), Unit]((line + "\n").zipWithIndex.map { case (c, idx) => (c, 1, idx + 1) })
+            val enumerator = Enumerator.seq[(Char, Int, Int), Unit]((line).zipWithIndex.map { case (c, idx) => (c, 1, idx + 1) })
 
-            // we give a credit of 3 retries because of the peeking of 4 characters
+            // we give a credit of 4 retries because of the peeking of 4 characters
             // to expand escaped characters
             val res = enumerator(it).flatMap(run(4, _))
 
