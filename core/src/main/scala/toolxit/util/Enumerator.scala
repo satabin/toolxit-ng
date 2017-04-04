@@ -115,7 +115,7 @@ object Enumerator {
         env.popInput() match {
           case None =>
             // no input left, end of the story
-            feedI(k, Eos(None))
+            Try(it)
           case Some((reader, None)) =>
             // no line currently read by this reader, process next one
             if (env.endinputEncountered) {

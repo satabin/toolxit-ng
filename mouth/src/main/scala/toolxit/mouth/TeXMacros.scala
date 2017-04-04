@@ -567,9 +567,13 @@ trait TeXMacros {
               acc
             else
               acc.append(".tex")
-          done(acc1.toString)
+          for (() <- swallow)
+            yield acc1.toString
         case CharacterToken(c, _) =>
-          loop(acc.append(c))
+          for {
+            () <- swallow
+            t <- loop(acc.append(c))
+          } yield t
         case t =>
           throwError(new TeXMouthException("Missing input file name", t.pos))
       }

@@ -139,24 +139,6 @@ abstract class Iteratees[Elt] {
     case Eos(e)   => doneM((), Chunk(Seq(elt)))
   }
 
-  def peek(n: Int): Iteratee[Elt, Seq[Elt]] = {
-    def step(n: Int, prefix: Seq[Elt], s: Stream[Elt]): Try[(Iteratee[Elt, Seq[Elt]], Stream[Elt])] = s match {
-      case c @ Chunk(s) if s.size >= n => doneM(prefix ++ s.take(n), Chunk(prefix ++ s))
-      case c @ Chunk(s)                => contM(step(n - s.size, prefix ++ s, _))
-      case _                           => doneM(prefix, Chunk(prefix))
-    }
-    cont(step(n, Seq(), _))
-  }
-
-  def swallow(n: Int): Iteratee[Elt, Unit] = {
-    def step(n: Int, s: Stream[Elt]): Try[(Iteratee[Elt, Unit], Stream[Elt])] = s match {
-      case c @ Chunk(s) if s.size >= n => doneM((), Chunk(s.drop(n)))
-      case Chunk(s)                    => contM(step(n - s.size, _))
-      case _                           => Try((Cont(Some(setEos(s)), step(n, _)), s))
-    }
-    cont(step(n, _))
-  }
-
   def pushback(elts: Seq[Elt]): Iteratee[Elt, Unit] = cont {
     case Chunk(s) => doneM((), Chunk(elts.foldLeft(s)((acc, elt) => elt +: acc)))
     case Eos(e)   => doneM((), Chunk(elts.reverse))

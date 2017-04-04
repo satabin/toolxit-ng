@@ -81,7 +81,7 @@ class Xonsole {
       for (f <- format) {
         environment.pushInput(new LineNumberReader(new InputStreamReader(getClass.getResourceAsStream(f"/$f.tex"))), None)
         val enumerator = Enumerator.env[Unit](environment)
-        val i = enumerator(it).flatMap(run(4, _))
+        val i = enumerator(it).flatMap(run(_))
         i match {
           case Success(())              =>
           // format loaded
@@ -105,12 +105,13 @@ class Xonsole {
             terminal.writer.println("(Please type a command or say `\\end')")
           } else {
 
+            closeAll(environment)
             environment.pushInput(new LineNumberReader(new StringReader(line.replaceAll("\\s*$", "\n"))), None)
             val enumerator = Enumerator.env[Unit](environment)
 
             // we give a credit of 4 retries because of the peeking of 4 characters
             // to expand escaped characters
-            val res = enumerator(it).flatMap(run(4, _))
+            val res = enumerator(it).flatMap(run(_))
 
             res match {
               case Success(())              =>
@@ -140,6 +141,15 @@ class Xonsole {
       terminal.close()
       out.close()
     }
+  }
+
+  @tailrec
+  private def closeAll(env: TeXEnvironment): Unit = env.popInput() match {
+    case Some((reader, _)) =>
+      reader.close()
+      closeAll(env)
+    case None =>
+      ()
   }
 
 }

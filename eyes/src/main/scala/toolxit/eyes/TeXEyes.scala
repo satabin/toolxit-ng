@@ -53,25 +53,26 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
    *     - any other character
    */
   val preprocessor: Processor[Option[(Char, Int, Int)]] =
-    peek(4).flatMap {
-      case List(
-        (SUPERSCRIPT(sup1), l, c),
-        (SUPERSCRIPT(sup2), _, _),
-        (Hexa(h1), _, _),
-        (Hexa(h2), _, _)) if sup1 == sup2 =>
-        for (() <- swallow(4))
-          yield Some((((h1 << 4) + h2).toChar, l, c))
-      case List(
-        (SUPERSCRIPT(sup1), l, c),
-        (SUPERSCRIPT(sup2), _, _),
-        (ch, _, _), _*) if sup1 == sup2 =>
-        for (() <- swallow(3))
-          yield Some((if (ch < 64) (ch + 64).toChar else (ch - 64).toChar, l, c))
-      case ps @ List((ch, l, c), _*) =>
-        for (() <- swallow)
-          yield Some((ch, l, c))
-      case Nil =>
-        done(None)
+    peek.flatMap {
+      case ch @ Some((SUPERSCRIPT(sup1), l, c)) =>
+        swallow.andThen(peek.flatMap {
+          case Some((SUPERSCRIPT(sup2), _, _)) if sup1 == sup2 =>
+            swallow.andThen(peek.flatMap {
+              case Some((ch @ Hexa(h1), _, _)) =>
+                swallow.andThen(peek.flatMap {
+                  case Some((Hexa(h2), _, _)) =>
+                    swallow.andThen(done(Some((((h1 << 4) + h2).toChar, l, c))))
+                  case _ =>
+                    done(Some((if (ch < 64) (ch + 64).toChar else (ch - 64).toChar, l, c)))
+                })
+              case Some((ch, _, _)) =>
+                swallow.andThen(done(Some((if (ch < 64) (ch + 64).toChar else (ch - 64).toChar, l, c))))
+              case None =>
+                throwError(new TeXEyesException(env.lastPosition.line, env.lastPosition.column, "End of input while preprocessing character"))
+            })
+          case _ => done(ch)
+        })
+      case c => swallow.andThen(done(c))
     }
 
   val letters: Processor[String] =

@@ -33,12 +33,11 @@ package object util {
     Cont(Some(exn), k)
 
   /** Runs the iteratee and returns the result wrapped in the monad. */
-  def run[Elt, A](retries: Int, it: Iteratee[Elt, A]): Try[A] = it match {
+  def run[Elt, A](it: Iteratee[Elt, A]): Try[A] = it match {
     case Done(v) => Try(v)
     case Cont(None, k) => k(Eos(None)).flatMap {
-      case (Done(v), s)                          => Try(v)
-      case (cont @ Cont(e, _), s) if retries > 0 => run(retries - 1, cont)
-      case (cont @ Cont(e, _), s)                => Failure(e.getOrElse(exnDivergent))
+      case (Done(v), s)           => Try(v)
+      case (cont @ Cont(e, _), s) => Failure(e.getOrElse(exnDivergent))
     }
     case Cont(Some(e), _) => Failure(e)
   }
