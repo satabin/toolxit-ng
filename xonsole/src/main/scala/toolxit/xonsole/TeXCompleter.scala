@@ -34,7 +34,7 @@ class TeXCompleter(env: TeXEnvironment) extends Completer {
           env.css.names.filter(_.startsWith(name)).map(ProposedCs(_)("user defined")) ++
             // and fallback in primitives
             Primitives.all.filter(_.startsWith(name)).map(ProposedCs(_)("primitive"))
-        candidates.addAll(potential.map(p => new Candidate("\\" + p.name, "\\" + p.name, null, p.group, null, null, true)).asJava)
+        candidates.addAll(potential.map(p => new Candidate("\\" + p.name, "\\" + p.name, null, p.group, null, null, false)).asJava)
       case _ =>
       // no completion for the rest
     }
