@@ -77,11 +77,15 @@ object Enumerator {
    */
   def reader[A](reader: Reader, chunkSize: Int = 1024): Enumerator[(Char, Int, Int), A] = {
     case Cont(None, k) =>
+      @tailrec
       def loop(line: Int, reader: BufferedReader, k: K[(Char, Int, Int), A]): Try[Iteratee[(Char, Int, Int), A]] =
         Try(reader.readLine()) match {
           case Success(null) => feedI(k, Eos(None))
           case Success(s) =>
-            feedI(k, Chunk(s.replaceAll("\\s*$", "\n").zipWithIndex.map { case (c, idx) => (c, line, idx + 1) })).flatMap(check(line + 1, reader))
+            feedI(k, Chunk(s.replaceAll("\\s*$", "\n").zipWithIndex.map { case (c, idx) => (c, line, idx + 1) })) match {
+              case Success(Cont(None, k)) => loop(line + 1, reader, k)
+              case i                      => i
+            }
           case Failure(e: Exception) => feedI(k, Eos(Some(e)))
           case Failure(t)            => throw t
         }
