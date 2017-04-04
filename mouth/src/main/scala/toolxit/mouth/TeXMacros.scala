@@ -20,6 +20,8 @@ import dimen.Dimension
 
 import util._
 
+import java.io.File
+
 /** The macros and expansion mechanisms described in chapter 20 of the TeX Book are done here.
  *
  *  @author Lucas Satabin
@@ -561,14 +563,19 @@ trait TeXMacros {
   def expandInput: Processor[Token] = {
     def loop(acc: StringBuilder): Processor[String] =
       read.flatMap {
-        case CharacterToken(_, Category.SPACE) | ControlSequenceToken(_, _) if acc.nonEmpty =>
-          val acc1 =
+        case t @ (CharacterToken(_, Category.SPACE) | ControlSequenceToken(_, _)) if acc.nonEmpty =>
+          val name =
             if (acc.endsWith(".tex"))
-              acc
+              acc.toString
             else
-              acc.append(".tex")
-          for (() <- swallow)
-            yield acc1.toString
+              acc + ".tex"
+          val f = new File(name)
+          if (f.exists) {
+            for (() <- swallow)
+              yield name
+          } else {
+            throwError(new TeXMouthException(f"I can't find file `$acc'.", t.pos))
+          }
         case CharacterToken(c, _) =>
           for {
             () <- swallow

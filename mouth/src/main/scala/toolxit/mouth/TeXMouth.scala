@@ -26,7 +26,8 @@ import util._
 
 import java.io.{
   FileReader,
-  LineNumberReader
+  LineNumberReader,
+  FileNotFoundException
 }
 
 /** The TeX mouth is a parser from tokens produced by the [[toolxit.eyes.TeXEyes]]
