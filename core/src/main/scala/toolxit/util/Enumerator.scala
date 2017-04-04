@@ -29,6 +29,7 @@ import java.io.{
   Reader,
   FileReader,
   BufferedReader,
+  LineNumberReader,
   InputStreamReader
 }
 
@@ -80,7 +81,7 @@ object Enumerator {
         Try(reader.readLine()) match {
           case Success(null) => feedI(k, Eos(None))
           case Success(s) =>
-            feedI(k, Chunk(s.replaceAll("\\s+$", "").zipWithIndex.map { case (c, idx) => (c, line, idx + 1) })).flatMap(check(line + 1, reader))
+            feedI(k, Chunk(s.replaceAll("\\s*$", "\n").zipWithIndex.map { case (c, idx) => (c, line, idx + 1) })).flatMap(check(line + 1, reader))
           case Failure(e: Exception) => feedI(k, Eos(Some(e)))
           case Failure(t)            => throw t
         }
@@ -102,5 +103,74 @@ object Enumerator {
   /** Feeds the iteratee with the string content of a resource, character by character. */
   def resource[A](name: String, chunkSize: Int = 1024): Enumerator[(Char, Int, Int), A] =
     reader(new InputStreamReader(getClass.getResourceAsStream(name)), chunkSize)
+
+  def env[A](env: TeXEnvironment): Enumerator[(Char, Int, Int), A] = {
+    case it @ Cont(None, k) =>
+      @tailrec
+      def loop(k: K[(Char, Int, Int), A]): Try[Iteratee[(Char, Int, Int), A]] =
+        env.popInput() match {
+          case None =>
+            // no input left, end of the story
+            feedI(k, Eos(None))
+          case Some((reader, None)) =>
+            // no line currently read by this reader, process next one
+            if (env.endinputEncountered) {
+              // actually we encountered an endinput command, close
+              // current input and process next open input
+              env.endinputEncountered = false
+              Try(reader.close()) match {
+                case Success(())           => loop(k)
+                case Failure(e: Exception) => feedI(k, Eos(Some(e)))
+                case Failure(t)            => throw t
+              }
+            } else
+              // yes we really do want to read the next line
+              Try(reader.readLine()) match {
+                case Success(null) =>
+                  // however none is left in the input, close and notify eos
+                  Try(reader.close()) match {
+                    case Success(())           => loop(k)
+                    case Failure(e: Exception) => feedI(k, Eos(Some(e)))
+                    case Failure(t)            => throw t
+                  }
+                case Success(s) =>
+                  // there is something left to read in the current input!
+                  // buffer the line and feed it character by character
+                  // push the new buffered line with first character processed
+                  // ToolXiT reads the line, remove trailing spaces and add a \n in the end
+                  // so a line is never empty
+                  val line = s.replaceAll("\\s*$", "\n")
+                  env.pushInput(reader, Some(line -> 1))
+                  feedI(k, Chunk(List((line(0), reader.getLineNumber, 1)))) match {
+                    case Success(Cont(None, k)) => loop(k)
+                    case i                      => i
+                  }
+                case Failure(e: Exception) =>
+                  env.pushInput(reader, None)
+                  feedI(k, Eos(Some(e)))
+                case Failure(t) => throw t
+              }
+          case Some((reader, Some((line, col)))) =>
+            // currently reading a buffered line
+            if (env.endOfLineEncountered || col >= line.length) {
+              // but we encountered an end of line character, then drop it and goto next
+              // or we reached the end of line, goto next
+              env.endOfLineEncountered = false
+              env.pushInput(reader, None)
+              loop(k)
+            } else {
+              // feed with next character and continue processing line
+              env.pushInput(reader, Some(line -> (col + 1)))
+              feedI(k, Chunk(List((line(col), reader.getLineNumber, col + 1)))) match {
+                case Success(Cont(None, k)) => loop(k)
+                case i                      => i
+              }
+            }
+        }
+      for {
+        r <- loop(k)
+      } yield r
+    case i => Try(i)
+  }
 
 }

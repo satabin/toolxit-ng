@@ -29,7 +29,9 @@ import java.nio.file.Paths
 import java.io.{
   StringReader,
   PrintWriter,
-  FileOutputStream
+  FileOutputStream,
+  InputStreamReader,
+  LineNumberReader
 }
 
 import scala.util.{
@@ -77,7 +79,8 @@ class Xonsole {
           Enumeratees.sequenceStream(eyes.tokenize)(Enumeratees.join(Enumeratees.sequenceStream(mouth.command)(stomach.process))))
 
       for (f <- format) {
-        val enumerator = Enumerator.resource[Unit](f"/$f.tex")
+        environment.pushInput(new LineNumberReader(new InputStreamReader(getClass.getResourceAsStream(f"/$f.tex"))), None)
+        val enumerator = Enumerator.env[Unit](environment)
         val i = enumerator(it).flatMap(run(4, _))
         i match {
           case Success(())              =>
@@ -102,7 +105,8 @@ class Xonsole {
             terminal.writer.println("(Please type a command or say `\\end')")
           } else {
 
-            val enumerator = Enumerator.seq[(Char, Int, Int), Unit]((line).zipWithIndex.map { case (c, idx) => (c, 1, idx + 1) })
+            environment.pushInput(new LineNumberReader(new StringReader(line.replaceAll("\\s*$", "\n"))), None)
+            val enumerator = Enumerator.env[Unit](environment)
 
             // we give a credit of 4 retries because of the peeking of 4 characters
             // to expand escaped characters

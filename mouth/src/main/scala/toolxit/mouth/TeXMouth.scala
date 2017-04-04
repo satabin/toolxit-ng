@@ -16,11 +16,18 @@
 package toolxit
 package mouth
 
-import scala.util.Try
+import scala.util.{
+  Try,
+  Success,
+  Failure
+}
 
 import util._
 
-import java.io.FileReader
+import java.io.{
+  FileReader,
+  LineNumberReader
+}
 
 /** The TeX mouth is a parser from tokens produced by the [[toolxit.eyes.TeXEyes]]
  *  and produces in turn commands that can be digested by the stomach.
@@ -61,13 +68,14 @@ class TeXMouth(val env: TeXEnvironment)
     }
 
   def openInput(name: String): Processor[Unit] =
-    try {
-      val reader = new LineReader(new FileReader(name))
-      env.pushInput(reader)
-      noop
-    } catch {
-      case e: Exception =>
+    Try(new LineNumberReader(new FileReader(name))) match {
+      case Success(reader) =>
+        env.pushInput(reader, None)
+        noop
+      case Failure(e: Exception) =>
         throwError(e)
+      case Failure(t) =>
+        throw t
     }
 
   protected[this] object Primitive {

@@ -24,6 +24,8 @@ import scala.collection.mutable.Map
 
 import scala.annotation.tailrec
 
+import java.io.LineNumberReader
+
 /** The TeX environment tracks the following elements:
  *   - defined macros,
  *   - character category codes,
@@ -123,13 +125,13 @@ class TeXEnvironment(_jobname: String) {
    *
    *  @group Globals
    */
-  private var inputs: List[LineReader] =
-    List.empty[LineReader]
+  private var inputs: List[(LineNumberReader, Option[(String, Int)])] =
+    List.empty[(LineNumberReader, Option[(String, Int)])]
 
-  def pushInput(reader: LineReader): Unit =
-    inputs = reader :: inputs
+  def pushInput(reader: LineNumberReader, line: Option[(String, Int)]): Unit =
+    inputs = (reader, line) :: inputs
 
-  def popInput(): Option[LineReader] = inputs match {
+  def popInput(): Option[(LineNumberReader, Option[(String, Int)])] = inputs match {
     case h :: t =>
       inputs = t
       Some(h)
