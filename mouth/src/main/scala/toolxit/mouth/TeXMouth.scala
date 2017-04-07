@@ -71,7 +71,7 @@ class TeXMouth(val env: TeXEnvironment)
   def openInput(name: String): Processor[Unit] =
     Try(new LineNumberReader(new FileReader(name))) match {
       case Success(reader) =>
-        env.pushInput(reader, None)
+        env.pushInput(reader, Some(name), None)
         noop
       case Failure(e: Exception) =>
         throwError(e)

@@ -18,6 +18,7 @@ package toolxit.util
 import java.io.File
 
 sealed trait Position {
+  val name: Option[String]
   val line: Int
   val column: Int
 }
@@ -26,10 +27,14 @@ sealed trait Position {
  *
  *  @author Lucas Satabin
  */
-case class SimplePosition(line: Int, column: Int) extends Position {
+case class SimplePosition(line: Int, column: Int, name: Option[String]) extends Position {
 
-  override def toString =
-    f"[$line.$column]"
+  override def toString = name match {
+    case Some(name) =>
+      f"$name: [$line.$column]"
+    case None =>
+      f"[$line.$column]"
+  }
 
 }
 
@@ -38,6 +43,8 @@ case class StackedPosition(current: Position, next: Position) extends Position {
   val line = current.line
 
   val column = current.column
+
+  val name = current.name
 
   override def toString =
     f"$current expanded from position $next"
@@ -50,6 +57,8 @@ object NoPosition extends Position {
   val line = -1
 
   val column = -1
+
+  val name = None
 
   override def toString =
     "<unknown position>"

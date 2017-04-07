@@ -79,7 +79,8 @@ class Xonsole {
           Enumeratees.sequenceStream(eyes.tokenize)(Enumeratees.join(Enumeratees.sequenceStream(mouth.command)(stomach.process))))
 
       for (f <- format) {
-        environment.pushInput(new LineNumberReader(new InputStreamReader(getClass.getResourceAsStream(f"/$f.tex"))), None)
+        val fname = f"/$f.tex"
+        environment.pushInput(new LineNumberReader(new InputStreamReader(getClass.getResourceAsStream(fname))), Some(fname), None)
         val enumerator = Enumerator.env[Unit](environment)
         val i = enumerator(it).flatMap(run(_))
         i match {
@@ -106,7 +107,7 @@ class Xonsole {
           } else {
 
             closeAll(environment)
-            environment.pushInput(new LineNumberReader(new StringReader(line.replaceAll("\\s*$", "\n"))), None)
+            environment.pushInput(new LineNumberReader(new StringReader(line.replaceAll("\\s*$", "\n"))), None, None)
             val enumerator = Enumerator.env[Unit](environment)
 
             // we give a credit of 4 retries because of the peeking of 4 characters
@@ -121,9 +122,14 @@ class Xonsole {
               case Failure(EndException) =>
                 throw new EndOfFileException
               case Failure(TeXException(msg, pos)) =>
-                terminal.writer.print(" " * pos.column)
-                terminal.writer.println("^")
-                terminal.writer.println(f"$pos $msg")
+                pos.name match {
+                  case None =>
+                    terminal.writer.print(" " * pos.column)
+                    terminal.writer.println("^")
+                    terminal.writer.println(msg)
+                  case Some(_) =>
+                    terminal.writer.println(f"$pos $msg")
+                }
               case Failure(t) =>
                 t.printStackTrace
             }
@@ -145,7 +151,7 @@ class Xonsole {
 
   @tailrec
   private def closeAll(env: TeXEnvironment): Unit = env.popInput() match {
-    case Some((reader, _)) =>
+    case Some((reader, _, _)) =>
       reader.close()
       closeAll(env)
     case None =>

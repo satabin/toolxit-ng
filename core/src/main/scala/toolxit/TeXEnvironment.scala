@@ -125,13 +125,13 @@ class TeXEnvironment(_jobname: String) {
    *
    *  @group Globals
    */
-  private var inputs: List[(LineNumberReader, Option[(String, Int)])] =
-    List.empty[(LineNumberReader, Option[(String, Int)])]
+  private var inputs: List[(LineNumberReader, Option[String], Option[(String, Int)])] =
+    List.empty[(LineNumberReader, Option[String], Option[(String, Int)])]
 
-  def pushInput(reader: LineNumberReader, line: Option[(String, Int)]): Unit =
-    inputs = (reader, line) :: inputs
+  def pushInput(reader: LineNumberReader, name: Option[String], line: Option[(String, Int)]): Unit =
+    inputs = (reader, name, line) :: inputs
 
-  def popInput(): Option[(LineNumberReader, Option[(String, Int)])] = inputs match {
+  def popInput(): Option[(LineNumberReader, Option[String], Option[(String, Int)])] = inputs match {
     case h :: t =>
       inputs = t
       Some(h)

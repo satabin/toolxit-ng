@@ -27,9 +27,9 @@ import util._
  *
  *  @author Lucas Satabin
  */
-class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
+class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Option[String], Int, Int)] {
 
-  type Processor[T] = Iteratee[(Char, Int, Int), T]
+  type Processor[T] = Iteratee[(Char, Option[String], Int, Int), T]
 
   object Hexa {
     val hexaLower = "0123456789abcdef"
@@ -52,23 +52,23 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
    *     - `^^A` where A is a letter (< 128)
    *     - any other character
    */
-  val preprocessor: Processor[Option[(Char, Int, Int)]] =
+  val preprocessor: Processor[Option[(Char, Option[String], Int, Int)]] =
     peek.flatMap {
-      case ch @ Some((SUPERSCRIPT(sup1), l, c)) =>
+      case ch @ Some((SUPERSCRIPT(sup1), n, l, c)) =>
         swallow.andThen(peek.flatMap {
-          case Some((SUPERSCRIPT(sup2), _, _)) if sup1 == sup2 =>
+          case Some((SUPERSCRIPT(sup2), _, _, _)) if sup1 == sup2 =>
             swallow.andThen(peek.flatMap {
-              case Some((ch @ Hexa(h1), _, _)) =>
+              case Some((ch @ Hexa(h1), _, _, _)) =>
                 swallow.andThen(peek.flatMap {
-                  case Some((Hexa(h2), _, _)) =>
-                    swallow.andThen(done(Some((((h1 << 4) + h2).toChar, l, c))))
+                  case Some((Hexa(h2), _, _, _)) =>
+                    swallow.andThen(done(Some((((h1 << 4) + h2).toChar, n, l, c))))
                   case _ =>
-                    done(Some((if (ch < 64) (ch + 64).toChar else (ch - 64).toChar, l, c)))
+                    done(Some((if (ch < 64) (ch + 64).toChar else (ch - 64).toChar, n, l, c)))
                 })
-              case Some((ch, _, _)) =>
-                swallow.andThen(done(Some((if (ch < 64) (ch + 64).toChar else (ch - 64).toChar, l, c))))
+              case Some((ch, _, _, _)) =>
+                swallow.andThen(done(Some((if (ch < 64) (ch + 64).toChar else (ch - 64).toChar, n, l, c))))
               case None =>
-                throwError(new TeXEyesException(env.lastPosition.line, env.lastPosition.column, "End of input while preprocessing character"))
+                throwError(new TeXEyesException("End of input while preprocessing character", env.lastPosition))
             })
           case _ => done(ch)
         })
@@ -77,23 +77,23 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
 
   val letters: Processor[String] =
     preprocessor.flatMap {
-      case Some((LETTER(l), _, _)) => letters.map(l + _)
-      case Some(tok)               => pushback(tok).andThen(done(""))
-      case None                    => done("")
+      case Some((LETTER(l), _, _, _)) => letters.map(l + _)
+      case Some(tok)                  => pushback(tok).andThen(done(""))
+      case None                       => done("")
     }
 
   val comment: Processor[Unit] =
     preprocessor.flatMap {
-      case Some((END_OF_LINE(_), _, _)) => noop
-      case Some(_)                      => comment
-      case None                         => noop
+      case Some((END_OF_LINE(_), _, _, _)) => noop
+      case Some(_)                         => comment
+      case None                            => noop
     }
 
   val tokenize: Processor[Token] =
     for {
       pp <- preprocessor
       t <- pp match {
-        case Some((ch, l, c)) =>
+        case Some((ch, n, l, c)) =>
           ch match {
             case IGNORED_CHARACTER(_) =>
               // the obvious case is to ignore currently ignored characters
@@ -113,33 +113,33 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
               // an active character is control sequence, and after control sequence we go into
               // the 'skipping blanks' state
               state = ReadingState.S
-              done(ControlSequenceToken(ch.toString, true).atPos(SimplePosition(l, c)))
+              done(ControlSequenceToken(ch.toString, true).atPos(SimplePosition(l, c, n)))
             case ESCAPE_CHARACTER(_) =>
               // a control sequence starts with an escape character and is followed by letters
               // or a single other character
               // after control sequence we go into the 'skipping blanks' state
               env.state = ReadingState.S
               preprocessor.flatMap {
-                case Some((LETTER(f), _, _)) =>
+                case Some((LETTER(f), _, _, _)) =>
                   for {
                     csname <- letters
-                  } yield ControlSequenceToken(f + csname, false).atPos(SimplePosition(l, c))
-                case Some((ch, _, _)) =>
+                  } yield ControlSequenceToken(f + csname, false).atPos(SimplePosition(l, c, n))
+                case Some((ch, _, _, _)) =>
                   for (() <- swallow) yield {
-                    ControlSequenceToken(ch.toString, false).atPos(SimplePosition(l, c))
+                    ControlSequenceToken(ch.toString, false).atPos(SimplePosition(l, c, n))
                   }
                 case None =>
-                  throwError(new TeXEyesException(env.lastPosition.line, env.lastPosition.column, "End of input reached before parsing control sequence name"))
+                  throwError(new TeXEyesException("End of input reached before parsing control sequence name", env.lastPosition))
               }
             case END_OF_LINE(_) if env.state == ReadingState.N =>
               // when reading end of line and if we are in the 'new line' reading state,
               // this is equivalent to the `\par` control sequence and stay in the same state
-              done(ControlSequenceToken("par", false).atPos(SimplePosition(l, c)))
+              done(ControlSequenceToken("par", false).atPos(SimplePosition(l, c, n)))
             case END_OF_LINE(_) if env.state == ReadingState.M =>
               // otherwise in any reading state 'middle of line', it is considered as a space and we go into
               // 'new line' reading state
               env.state = ReadingState.N
-              done(CharacterToken(' ', Category.SPACE).atPos(SimplePosition(l, c)))
+              done(CharacterToken(' ', Category.SPACE).atPos(SimplePosition(l, c, n)))
             case END_OF_LINE(_) =>
               // otherwise we are skipping blank characters, so just ignore it
               tokenize
@@ -148,15 +148,15 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
               // the space token is always ' ' even if it were some other characters that
               // was assigned the SPACE category
               env.state = ReadingState.S
-              done(CharacterToken(' ', Category.SPACE).atPos(SimplePosition(l, c)))
+              done(CharacterToken(' ', Category.SPACE).atPos(SimplePosition(l, c, n)))
             case _ =>
               // otherwise, any other character is returned and we are now in the 'middle of line'
               // reading state
               env.state = ReadingState.M
-              done(CharacterToken(ch, category(ch)).atPos(SimplePosition(l, c)))
+              done(CharacterToken(ch, category(ch)).atPos(SimplePosition(l, c, n)))
           }
         case None =>
-          done(EOIToken().atPos(SimplePosition(env.lastPosition.line, env.lastPosition.column)))
+          done(EOIToken().atPos(SimplePosition(env.lastPosition.line, env.lastPosition.column, env.lastPosition.name)))
       }
     } yield {
       env.lastPosition = t.pos
@@ -165,4 +165,4 @@ class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Int, Int)] {
 
 }
 
-case class TeXEyesException(line: Int, column: Int, expected: String) extends Exception
+class TeXEyesException(msg: String, pos: Position) extends TeXException(pos, msg)

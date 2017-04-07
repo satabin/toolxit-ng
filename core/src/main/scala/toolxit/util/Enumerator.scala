@@ -108,15 +108,15 @@ object Enumerator {
   def resource[A](name: String, chunkSize: Int = 1024): Enumerator[(Char, Int, Int), A] =
     reader(new InputStreamReader(getClass.getResourceAsStream(name)), chunkSize)
 
-  def env[A](env: TeXEnvironment): Enumerator[(Char, Int, Int), A] = {
+  def env[A](env: TeXEnvironment): Enumerator[(Char, Option[String], Int, Int), A] = {
     case it @ Cont(None, k) =>
       @tailrec
-      def loop(k: K[(Char, Int, Int), A]): Try[Iteratee[(Char, Int, Int), A]] =
+      def loop(k: K[(Char, Option[String], Int, Int), A]): Try[Iteratee[(Char, Option[String], Int, Int), A]] =
         env.popInput() match {
           case None =>
             // no input left, end of the story
             Try(it)
-          case Some((reader, None)) =>
+          case Some((reader, name, None)) =>
             // no line currently read by this reader, process next one
             if (env.endinputEncountered) {
               // actually we encountered an endinput command, close
@@ -144,28 +144,28 @@ object Enumerator {
                   // ToolXiT reads the line, remove trailing spaces and add a \n in the end
                   // so a line is never empty
                   val line = s.replaceAll("\\s*$", "\n")
-                  env.pushInput(reader, Some(line -> 1))
-                  feedI(k, Chunk(List((line(0), reader.getLineNumber, 1)))) match {
+                  env.pushInput(reader, name, Some(line -> 1))
+                  feedI(k, Chunk(List((line(0), name, reader.getLineNumber, 1)))) match {
                     case Success(Cont(None, k)) => loop(k)
                     case i                      => i
                   }
                 case Failure(e: Exception) =>
-                  env.pushInput(reader, None)
+                  env.pushInput(reader, name, None)
                   feedI(k, Eos(Some(e)))
                 case Failure(t) => throw t
               }
-          case Some((reader, Some((line, col)))) =>
+          case Some((reader, name, Some((line, col)))) =>
             // currently reading a buffered line
             if (env.endOfLineEncountered || col >= line.length) {
               // but we encountered an end of line character, then drop it and goto next
               // or we reached the end of line, goto next
               env.endOfLineEncountered = false
-              env.pushInput(reader, None)
+              env.pushInput(reader, name, None)
               loop(k)
             } else {
               // feed with next character and continue processing line
-              env.pushInput(reader, Some(line -> (col + 1)))
-              feedI(k, Chunk(List((line(col), reader.getLineNumber, col + 1)))) match {
+              env.pushInput(reader, name, Some(line -> (col + 1)))
+              feedI(k, Chunk(List((line(col), name, reader.getLineNumber, col + 1)))) match {
                 case Success(Cont(None, k)) => loop(k)
                 case i                      => i
               }
