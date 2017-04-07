@@ -285,8 +285,8 @@ trait TeXNumbers {
 
   object CharDef {
     def unapply(name: String): Option[Char] = env.css(name) match {
-      case Some(TeXChar(_, c)) => Some(c)
-      case _                   => None
+      case Some(TeXChar(_, CharacterToken(c, _))) => Some(c)
+      case _                                      => None
     }
   }
 

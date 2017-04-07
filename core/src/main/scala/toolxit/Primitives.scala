@@ -343,6 +343,20 @@ object Primitives {
     }
   }
 
+  val font = Set(
+    "font",
+    "nullfont",
+    "textfont",
+    "scriptfont",
+    "scriptscriptfont")
+
+  object Font {
+    def unapply(token: Token): Option[String] = token match {
+      case ControlSequenceToken(name, _) if font.contains(name) => Some(name)
+      case _ => None
+    }
+  }
+
   val all =
     expandablePrimitives ++
       integerParameter ++
@@ -354,6 +368,7 @@ object Primitives {
       internalInteger ++
       codename ++
       specialDimension ++
-      internalDimension
+      internalDimension ++
+      font
 
 }

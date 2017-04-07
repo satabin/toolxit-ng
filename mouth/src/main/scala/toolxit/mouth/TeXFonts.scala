@@ -16,11 +16,42 @@
 package toolxit
 package mouth
 
+import util._
+import dimen._
+import font._
+
 trait TeXFonts {
   this: TeXMouth =>
 
-  lazy val font: Processor[Byte] =
-    ???
+  lazy val font: Processor[(String, Option[Either[Dimension, Double]])] =
+    for {
+      t <- read
+      f <- t match {
+        case FontdefToken(fn, mag) =>
+          for (() <- swallow)
+            yield (fn, mag)
+        case Primitives.Font("font") =>
+          for (() <- swallow)
+            yield env.font().get
+        case t @ Primitives.Font("textfont") =>
+          for {
+            () <- swallow
+            n <- catNumber(t.pos)
+          } yield env.textfont(n).get
+        case Primitives.Font("scriptfont") =>
+          for {
+            () <- swallow
+            n <- catNumber(t.pos)
+          } yield env.scriptfont(n).get
+        case Primitives.Font("scriptscriptfont") =>
+          for {
+            () <- swallow
+            n <- catNumber(t.pos)
+          } yield env.scriptscriptfont(n).get
+        case _ =>
+          throwError[Token](new TeXMouthException("Font expected", t.pos))
+      }
+    } yield f
 
 }
 

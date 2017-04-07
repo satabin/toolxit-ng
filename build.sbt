@@ -22,7 +22,7 @@ lazy val toolxit = project.in(file("."))
   .settings(
     scalacOptions in (Compile, doc) ++= Seq("-doc-root-content", "rootdoc.txt", "-groups"))
   .settings(globalSettings: _*)
-  .aggregate(core, eyes, mouth, stomach, xonsole)
+  .aggregate(core, eyes, mouth, stomach, fonts, xonsole)
 
 lazy val scalariform = scalariformSettings ++ Seq(
   ScalariformKeys.preferences :=
@@ -55,9 +55,16 @@ lazy val stomach = project.in(file("stomach"))
     name := "stomach")
   .dependsOn(mouth)
 
+lazy val fonts = project.in(file("fonts"))
+  .settings(globalSettings: _*)
+  .settings(
+    name := "fonts",
+    libraryDependencies += "org.scodec" %% "scodec-core" % "1.10.3")
+  .dependsOn(core)
+
 lazy val xonsole = project.in(file("xonsole"))
   .settings(globalSettings: _*)
   .settings(
     name := "xonsole",
     libraryDependencies += "org.jline" % "jline" % "3.2.0")
-  .dependsOn(stomach)
+  .dependsOn(stomach, fonts)

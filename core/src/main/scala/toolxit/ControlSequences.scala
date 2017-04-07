@@ -16,6 +16,7 @@
 package toolxit
 
 import dimen._
+import font._
 
 import enumeratum._
 
@@ -56,7 +57,7 @@ sealed trait ControlSequence {
 }
 
 final case class TeXChar(name: String,
-    char: Char) extends ControlSequence {
+    char: CharacterToken) extends ControlSequence {
   val tpe = TeXType.TeXChar
 }
 
@@ -115,6 +116,7 @@ final case class TeXTokenList(name: String,
 }
 
 final case class TeXFont(name: String,
-    number: Byte) extends ControlSequence {
+    fname: String,
+    magnification: Option[Either[Dimension, Double]]) extends ControlSequence {
   val tpe = TeXType.TeXFont
 }

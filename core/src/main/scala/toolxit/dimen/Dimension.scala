@@ -43,6 +43,12 @@ case class Dimension(sps: Int) extends Ordered[Dimension] {
   def /(that: Int): Dimension =
     Dimension(this.sps / that)
 
+  def pts: Double =
+    sps.toDouble / 65536
+
+  override def toString =
+    f"$pts pt"
+
 }
 
 object Dimension {
@@ -57,22 +63,22 @@ object Dimension {
   // cc -> cicero (1 cc = 12 dd)
   // sp -> scaled point (65536 sp = 1 pt)
 
-  def ofScaledPoint(sp: Double): Dimension = Dimension(sp.toInt)
+  def ofScaledPoint(sp: Double): Dimension = Dimension(math.round(sp).toInt)
 
-  def ofPoint(point: Double): Dimension = Dimension((65536f * point).toInt)
+  def ofPoint(point: Double): Dimension = Dimension(math.round(65536d * point).toInt)
 
-  def ofPica(pica: Double): Dimension = ofPoint(12f * pica)
+  def ofPica(pica: Double): Dimension = ofPoint(12d * pica)
 
-  def ofInch(in: Double): Dimension = ofPoint(72.27f * in)
+  def ofInch(in: Double): Dimension = ofPoint(72.27d * in)
 
-  def ofBigPoint(bp: Double): Dimension = ofInch(bp / 72f)
+  def ofBigPoint(bp: Double): Dimension = ofInch(bp / 72d)
 
-  def ofCentimeter(cm: Double): Dimension = ofInch(cm / 2.54f)
+  def ofCentimeter(cm: Double): Dimension = ofInch(cm / 2.54d)
 
-  def ofMillimeter(mm: Double): Dimension = ofCentimeter(mm / 10f)
+  def ofMillimeter(mm: Double): Dimension = ofCentimeter(mm / 10d)
 
-  def ofDidotPoint(dd: Double): Dimension = ofPoint(dd * 1238f / 1157f)
+  def ofDidotPoint(dd: Double): Dimension = ofPoint(dd * 1238d / 1157d)
 
-  def ofCicero(cc: Double): Dimension = ofDidotPoint(cc * 12f)
+  def ofCicero(cc: Double): Dimension = ofDidotPoint(cc * 12d)
 
 }

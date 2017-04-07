@@ -21,6 +21,8 @@ import eyes._
 import mouth._
 import stomach._
 
+import font.tfm._
+
 import org.jline.terminal.TerminalBuilder
 import org.jline.reader._
 import org.jline.reader.impl.DefaultParser
@@ -47,7 +49,9 @@ class Xonsole {
 
   def open(format: Option[String] = Some("minimal")): Unit = {
 
-    val environment = new TeXEnvironment("xonsole")
+    val tfmPath = Properties.envOrElse("XONSOLE_TFM_PATH", "/usr/share/texlive/texmf-dist/fonts/tfm/public/cm/")
+
+    val environment = new TeXEnvironment("xonsole", List(new TfmFinder(Paths.get(tfmPath))))
 
     val terminal = TerminalBuilder.builder().build()
 

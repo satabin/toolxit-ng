@@ -79,7 +79,7 @@ class TeXMouth(val env: TeXEnvironment)
         throw t
     }
 
-  protected[this] object Primitive {
+  object Primitive {
     def unapply(cs: ControlSequenceToken): Option[String] =
       env.css(cs.name) match {
         case Some(_) => None
@@ -87,13 +87,26 @@ class TeXMouth(val env: TeXEnvironment)
       }
   }
 
-  protected[this] object UserDefined {
+  object Implicit {
+    def unapply(token: Token): Option[CharacterToken] =
+      token match {
+        case ControlSequenceToken(n, _) =>
+          env.css(n) match {
+            case Some(TeXChar(_, c)) => Some(c)
+            case _                   => None
+          }
+        case _ =>
+          None
+      }
+  }
+
+  object UserDefined {
     @inline
     def unapply(name: String): Option[ControlSequence] =
       env.css(name)
   }
 
-  protected[this] object If {
+  object If {
     def unapply(name: String): Boolean =
       Primitives.isIf(name)
     def unapply(token: Token): Option[Token] =
@@ -265,7 +278,7 @@ class TeXMouth(val env: TeXEnvironment)
                     case TeXChar(_, c) =>
                       for {
                         () <- swallow
-                        () <- pushback(CharacterToken(c, env.category(c)))
+                        () <- pushback(c)
                         // read again
                         c <- command
                       } yield c
@@ -506,5 +519,40 @@ class TeXMouth(val env: TeXEnvironment)
       kwd <- loop(t.pos, trie, new StringBuilder)
     } yield kwd
   }
+
+  val filler: Processor[Unit] =
+    for {
+      () <- spaces
+      t <- read
+      () <- t match {
+        case ControlSequenceToken("relax", _) =>
+          for {
+            () <- swallow
+            () <- spaces
+            () <- filler
+          } yield ()
+        case _ =>
+          done(())
+      }
+    } yield ()
+
+  val generalText: Processor[List[Token]] =
+    for {
+      () <- filler
+      t <- read
+      l <- t match {
+        case CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
+          for (GroupToken(_, tokens, _) <- group(false, true, true, false, false))
+            yield tokens
+        case Implicit(c @ CharacterToken(_, Category.BEGINNING_OF_GROUP)) =>
+          for {
+            () <- swallow
+            () <- pushback(c)
+            GroupToken(_, tokens, _) <- group(false, true, true, false, false)
+          } yield tokens
+        case _ =>
+          throwError[Token](new TeXMouthException("Explicit or implicit beginning of group character expected", t.pos))
+      }
+    } yield l
 
 }

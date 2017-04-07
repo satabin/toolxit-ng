@@ -17,6 +17,7 @@ package toolxit
 
 import dimen._
 import glue._
+import font._
 
 import util._
 
@@ -45,7 +46,7 @@ import java.io.LineNumberReader
  *  @author Lucas Satabin
  *
  */
-class TeXEnvironment(_jobname: String) {
+class TeXEnvironment(val jobname: String, finders: List[FontFinder]) {
 
   // defines the registeres that get stacked when entering groups
   // registers allow for local definitions
@@ -69,7 +70,11 @@ class TeXEnvironment(_jobname: String) {
     // glues and muglues are the triple (dimension, stretch, shrink)
     val glues = Map.empty[Byte, Glue]
     val muglues = Map.empty[Byte, Muglue]
-    val fonts = Map.empty[Byte, Int]
+
+    var currentFont: Option[(String, Option[Either[Dimension, Double]])] = None
+    val textfonts = Map.empty[Byte, (String, Option[Either[Dimension, Double]])]
+    val scriptfonts = Map.empty[Byte, (String, Option[Either[Dimension, Double]])]
+    val scriptscriptfonts = Map.empty[Byte, (String, Option[Either[Dimension, Double]])]
 
     val integerParameters = Map.empty[String, Int]
     val dimensionParameters = Map.empty[String, Dimension]
@@ -78,6 +83,8 @@ class TeXEnvironment(_jobname: String) {
 
   }
 
+  val fontManager = new FontManager(finders)
+
   /** The root registers of this instance */
   private val root: TeXRegisters =
     new TeXRegisters(None)
@@ -85,13 +92,6 @@ class TeXEnvironment(_jobname: String) {
   /** The currently stacked local registers */
   private var locals: TeXRegisters =
     root
-
-  /** The job name, typically, the name of the command that launched this process.
-   *
-   *  @group Globals
-   */
-  val jobname: String =
-    _jobname
 
   /** The current reading state.
    *
@@ -121,16 +121,16 @@ class TeXEnvironment(_jobname: String) {
   var inReplacement: Boolean =
     false
 
-  /** The stack of opened inputs. The current read input stream is on the top.
-   *
-   *  @group Globals
-   */
   private var inputs: List[(LineNumberReader, Option[String], Option[(String, Int)])] =
     List.empty[(LineNumberReader, Option[String], Option[(String, Int)])]
 
+  /** Pushes a new (possibly unnamed) input from which to read next characters from now on.
+   *  Once the new input is finished, got back to reading the old input where we stopped.
+   */
   def pushInput(reader: LineNumberReader, name: Option[String], line: Option[(String, Int)]): Unit =
     inputs = (reader, name, line) :: inputs
 
+  /** Pops the current input from which to read. */
   def popInput(): Option[(LineNumberReader, Option[String], Option[(String, Int)])] = inputs match {
     case h :: t =>
       inputs = t
@@ -485,24 +485,110 @@ class TeXEnvironment(_jobname: String) {
     }
   }
 
-  /** Exposes font register management functions.
+  /** Exposes text font register management functions.
+   *
+   *  @group Registers
+   */
+  object textfont {
+
+    /** Finds and returns the textfont register value identified by its register number
+     *  in the current environment.
+     */
+    def apply(number: Byte): Option[(String, Option[Either[Dimension, Double]])] =
+      lookupRegister(number, (_.textfonts), locals)
+
+    /** Sets the value of the textfont register in the current environment.
+     *  This value will be reset to the previous value when leaving the current group.
+     */
+    def update(number: Byte, value: (String, Option[Either[Dimension, Double]])) =
+      locals.textfonts(number) = value
+
+    def update(number: Byte, global: Boolean, value: (String, Option[Either[Dimension, Double]])): Unit = {
+      val fonts = if (global) root.textfonts else locals.textfonts
+      fonts(number) = value
+    }
+
+  }
+
+  /** Exposes scriptfont register management functions.
+   *
+   *  @group Registers
+   */
+  object scriptfont {
+
+    /** Finds and returns the scriptfont register value identified by its register number
+     *  in the current environment.
+     */
+    def apply(number: Byte): Option[(String, Option[Either[Dimension, Double]])] =
+      lookupRegister(number, (_.scriptfonts), locals)
+
+    /** Sets the value of the scriptfont register in the current environment.
+     *  This value will be reset to the previous value when leaving the current group.
+     */
+    def update(number: Byte, value: (String, Option[Either[Dimension, Double]])) =
+      locals.scriptfonts(number) = value
+
+    def update(number: Byte, global: Boolean, value: (String, Option[Either[Dimension, Double]])): Unit = {
+      val fonts = if (global) root.scriptfonts else locals.scriptfonts
+      fonts(number) = value
+    }
+
+  }
+
+  /** Exposes scriptscriptfont register management functions.
+   *
+   *  @group Registers
+   */
+  object scriptscriptfont {
+
+    /** Finds and returns the scriptscriptfont register value identified by its register number
+     *  in the current environment.
+     */
+    def apply(number: Byte): Option[(String, Option[Either[Dimension, Double]])] =
+      lookupRegister(number, (_.scriptscriptfonts), locals)
+
+    /** Sets the value of the scriptscriptfont register in the current environment.
+     *  This value will be reset to the previous value when leaving the current group.
+     */
+    def update(number: Byte, value: (String, Option[Either[Dimension, Double]])) =
+      locals.scriptscriptfonts(number) = value
+
+    def update(number: Byte, global: Boolean, value: (String, Option[Either[Dimension, Double]])): Unit = {
+      val fonts = if (global) root.scriptscriptfonts else locals.scriptscriptfonts
+      fonts(number) = value
+    }
+
+  }
+
+  /** Exposes current font register management functions.
    *
    *  @group Registers
    */
   object font {
 
-    /** Finds and returns the font register value identified by its register number
-     *  in the current environment.
-     *  The default value of a count register is `0`.
-     */
-    def apply(number: Byte): Option[Int] =
-      lookupRegister(number, (_.fonts), locals)
+    def apply(): Option[(String, Option[Either[Dimension, Double]])] = {
+      @tailrec
+      def lookup(registers: TeXRegisters): Option[(String, Option[Either[Dimension, Double]])] =
+        registers.currentFont match {
+          case Some(f) => Some(f)
+          case None =>
+            registers.parent match {
+              case Some(p) => lookup(p)
+              case None    => None
+            }
+        }
+      lookup(locals)
+    }
 
-    /** Sets the value of the font register in the current environment.
-     *  This value will be reset to the previous value when leaving the current group.
-     */
-    def update(number: Byte, value: Int) =
-      locals.fonts(number) = value
+    def update(value: (String, Option[Either[Dimension, Double]])): Unit =
+      locals.currentFont = Some(value)
+
+    def update(global: Boolean, value: (String, Option[Either[Dimension, Double]])): Unit =
+      if (global)
+        root.currentFont = Some(value)
+      else
+        locals.currentFont = Some(value)
+
   }
 
   /** The current escape character.
@@ -783,7 +869,7 @@ class TeXEnvironment(_jobname: String) {
 object TeXEnvironment {
 
   /** Creates a new root environment */
-  def apply(jobname: String): TeXEnvironment =
-    new TeXEnvironment(jobname)
+  def apply(jobname: String, finders: List[FontFinder]): TeXEnvironment =
+    new TeXEnvironment(jobname, finders)
 
 }

@@ -68,6 +68,8 @@ class TeXStomach(env: TeXEnvironment, out: PrintWriter) extends Iteratees[Comman
       case _ =>
         env.css(name, global) = TeXCsAlias(name, alias)
     }
+    case CurrentFontAssignment(fname, magnification, global) =>
+      env.font(global) = (fname, magnification)
     case Read(inputno, cs, global) =>
     // TODO read next line in input number if exists and is open. otherwise read from stdin
   }

@@ -16,8 +16,8 @@
 package toolxit
 
 import dimen._
-
-import util.Positional
+import font._
+import util._
 
 import enumeratum._
 
@@ -89,7 +89,7 @@ case class DimensionAssignment(id: Byte, value: Int, mode: AssignmentMode, globa
 case class CategoryAssignment(c: Char, cat: Category, global: Boolean) extends Assignment
 
 /** A character definition. */
-case class CharacterDefinition(name: String, c: Char, global: Boolean) extends Assignment
+case class CharacterDefinition(name: String, c: CharacterToken, global: Boolean) extends Assignment
 
 /** A counter definition. */
 case class CounterDefinition(name: String, number: Byte, global: Boolean) extends Assignment
@@ -102,3 +102,6 @@ case class LetAssignment(name: String, meaning: Token, global: Boolean) extends 
 
 /** Assigns the content of next line in the input with given number to the given control sequence. */
 case class Read(inputno: Byte, cs: String, global: Boolean) extends Assignment
+
+/** Assigns the current font to the given one. */
+case class CurrentFontAssignment(fname: String, magnification: Option[Either[Dimension, Double]], global: Boolean) extends Assignment

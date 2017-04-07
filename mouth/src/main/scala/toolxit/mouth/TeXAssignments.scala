@@ -17,6 +17,8 @@ package toolxit
 package mouth
 
 import util._
+import dimen._
+import font._
 
 trait TeXAssignments {
   this: TeXMouth =>
@@ -29,7 +31,9 @@ trait TeXAssignments {
         true
       case DimendefToken(_) =>
         true
-      case Primitive("count" | "dimen" | "advance" | "multiply" | "divide" | "chardef" | "countdef" | "dimendef" | "let" | "futurelet" | "read") =>
+      case FontdefToken(_, _) =>
+        true
+      case Primitive("count" | "dimen" | "advance" | "multiply" | "divide" | "chardef" | "countdef" | "dimendef" | "let" | "futurelet" | "read" | "font" | "nullfont") =>
         true
       case Primitives.Codename(_) =>
         true
@@ -67,7 +71,7 @@ trait TeXAssignments {
           cs <- controlsequence
           () <- equals
           c <- char(tok.pos)
-        } yield CharacterDefinition(cs, c, global)
+        } yield CharacterDefinition(cs, CharacterToken(c, env.category(c)), global)
 
       // countdef
       case tok @ Primitive("countdef") =>
@@ -147,6 +151,11 @@ trait TeXAssignments {
           () <- equals
           d <- dimen
         } yield DimensionAssignment(dim, d.sps, AssignmentMode.Set, global)
+
+      case FontdefToken(fname, mag) =>
+        for {
+          () <- swallow
+        } yield CurrentFontAssignment(fname, mag, global)
 
       // arithmetic
       case ControlSequenceToken("advance", _) =>
@@ -248,6 +257,17 @@ trait TeXAssignments {
         env.css(name) match {
           case Some(TeXDimension(_, d)) => Some(d)
           case _                        => None
+        }
+      case _ => None
+    }
+  }
+
+  object FontdefToken {
+    def unapply(token: Token): Option[(String, Option[Either[Dimension, Double]])] = token match {
+      case ControlSequenceToken(name, _) =>
+        env.css(name) match {
+          case Some(TeXFont(_, fn, mag)) => Some(fn -> mag)
+          case _                         => None
         }
       case _ => None
     }
