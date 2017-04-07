@@ -95,7 +95,7 @@ object Enumerator {
       }
       for {
         r <- loop(1, new BufferedReader(reader, chunkSize), k)
-        _ <- Try(Try(reader.close).getOrElse(Unit))
+        _ <- Try(reader.close).orElse(Try(()))
       } yield r
     case i => Try(i)
   }

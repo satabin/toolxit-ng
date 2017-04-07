@@ -46,6 +46,12 @@ case class Typeset(what: Char) extends Command
 /** A new paragraph command. */
 case object Par extends Command
 
+/** No-op command. */
+case object Relax extends Command
+
+/** The end command. */
+case object End extends Command
+
 /** A control sequence that was not interpreted by the parser.
  *
  *  @author Lucas Satabin

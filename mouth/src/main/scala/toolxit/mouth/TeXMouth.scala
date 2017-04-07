@@ -247,6 +247,14 @@ class TeXMouth(val env: TeXEnvironment)
             for (() <- swallow)
               yield Par
 
+          case Primitive("relax") =>
+            for (() <- swallow)
+              yield Relax
+
+          case Primitive("end") =>
+            for (() <- swallow)
+              yield End
+
           case tok @ StartsAssignment() =>
             // this is an assignment
             if (long || outer) {

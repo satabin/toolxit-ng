@@ -25,13 +25,14 @@ class TeXStomach(env: TeXEnvironment, out: PrintWriter) extends Iteratees[Comman
   type Processor[+T] = Iteratee[Command, T]
 
   lazy val process: Processor[Unit] = headOption.flatMap {
-    case Some(cs @ CS("end")) =>
+    case Some(End) =>
       throwError(EndException)
     case Some(cs @ CS(name)) => throwError(new TeXStomachException(f"Undefined control sequence \\$name", cs.pos))
     case Some(v) =>
       v match {
         case Typeset(c)        => out.print(c)
         case Par               => out.print("\n\n")
+        case Relax             => // do nothing
         case Assignment(assgn) => assign(assgn)
         case cs @ CS(name)     => assert(false)
       }
