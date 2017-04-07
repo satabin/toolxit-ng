@@ -196,23 +196,6 @@ class TeXEnvironment(_jobname: String) {
    */
   object category {
 
-    object global {
-      def apply(char: Char): Category =
-        root.categories.get(char) match {
-          case Some(c) =>
-            c
-          case None =>
-            // if not specified otherwise, UTF-8 letters are in category `letter`
-            if (char.isLetter)
-              Category.LETTER
-            else
-              Category.OTHER_CHARACTER
-        }
-
-      def update(char: Char, category: Category): Unit =
-        root.categories(char) = category
-
-    }
     /** Returns the category of the given character in the current environment.
      *  This category may vary over time, so this method must be called every time
      *  one needs to determine the category of a character.
@@ -247,23 +230,6 @@ class TeXEnvironment(_jobname: String) {
    *  @group Registers
    */
   object css {
-
-    /** Exposes global control sequence management functions. */
-    object global {
-      /** Finds and returns the control sequence definition identified by its name.
-       *  If the control sequence is not found, returns `None`.
-       */
-      def apply(name: String): Option[ControlSequence] =
-        root.controlSequences.get(name)
-
-      /** Adds or replace the global control sequence identified by the given name
-       *  with the new control sequence definition. This control sequence definition
-       *  is global and so will be available in any context.
-       */
-      def update(name: String, cs: ControlSequence): Unit =
-        root.controlSequences(name) = cs
-
-    }
 
     /** Finds and returns the control sequence definition identified by its name.
      *  If the control sequence is not found in the given context, returns `None`.
@@ -305,14 +271,6 @@ class TeXEnvironment(_jobname: String) {
    */
   object count {
 
-    object global {
-      def apply(number: Byte): Int =
-        root.counters.getOrElse(number, 0)
-
-      def update(number: Byte, i: Int): Unit =
-        root.counters(number) = i
-    }
-
     /** Finds and returns the count register value identified by its register number
      *  in the current environment.
      *  The default value of a count register is `0`.
@@ -343,14 +301,6 @@ class TeXEnvironment(_jobname: String) {
    *  @group Registers
    */
   object integerParameter {
-
-    object global {
-      def apply(name: String): Int =
-        root.integerParameters.getOrElse(name, 0)
-
-      def update(name: String, i: Int): Unit =
-        root.integerParameters(name) = i
-    }
 
     /** Finds and returns the integer parameter register value identified by its register number
      *  in the current environment.

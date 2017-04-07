@@ -234,12 +234,7 @@ class TeXMouth(val env: TeXEnvironment)
             // define a new macro, register it and parse next command
             for {
               (global, m) <- macroDef(long, outer, global)
-              () = if (global)
-                // register the macro in global scope
-                env.css.global(m.name) = m
-              else
-                // register the macro in local scope
-                env.css(m.name) = m
+              () = env.css(m.name, global) = m
               c <- command
             } yield c
 
