@@ -714,51 +714,53 @@ trait TeXMacros {
         throwError(new TeXMouthException("expected \\number command", t.pos))
     }
 
-  private def meaning(t: Token) = t match {
+  def meaning(t: Token) = t match {
     case CharacterToken(c, Category.ESCAPE_CHARACTER) =>
-      toTokens(f"escape character $c")
+      f"escape character $c"
     case CharacterToken(c, Category.BEGINNING_OF_GROUP) =>
-      toTokens(f"begin-group character $c")
+      f"begin-group character $c"
     case CharacterToken(c, Category.END_OF_GROUP) =>
-      toTokens(f"end-group character $c")
+      f"end-group character $c"
     case CharacterToken(c, Category.MATH_SHIFT) =>
-      toTokens(f"math shift character $c")
+      f"math shift character $c"
     case CharacterToken(c, Category.ALIGNMENT_TAB) =>
-      toTokens(f"alignment tab character $c")
+      f"alignment tab character $c"
     case CharacterToken(c, Category.END_OF_LINE) =>
-      toTokens(f"end-of-line character $c")
+      f"end-of-line character $c"
     case CharacterToken(c, Category.PARAMETER) =>
-      toTokens(f"macro parameter character $c")
+      f"macro parameter character $c"
     case CharacterToken(c, Category.SUPERSCRIPT) =>
-      toTokens(f"superscript character $c")
+      f"superscript character $c"
     case CharacterToken(c, Category.SUBSCRIPT) =>
-      toTokens(f"subscript character $c")
+      f"subscript character $c"
     case CharacterToken(c, Category.IGNORED_CHARACTER) =>
-      toTokens(f"ignored character character $c")
+      f"ignored character character $c"
     case CharacterToken(c, Category.SPACE) =>
-      toTokens(f"space character character $c")
+      f"space character character $c"
     case CharacterToken(c, Category.LETTER) =>
-      toTokens(f"the letter $c")
+      f"the letter $c"
     case CharacterToken(c, Category.OTHER_CHARACTER) =>
-      toTokens(f"the character $c")
+      f"the character $c"
     case CharacterToken(c, Category.ACTIVE_CHARACTER) =>
-      toTokens(f"active character $c")
+      f"active character $c"
     case CharacterToken(c, Category.COMMENT_CHARACTER) =>
-      toTokens(f"comment character $c")
+      f"comment character $c"
     case CharacterToken(c, Category.INVALID_CHARACTER) =>
-      toTokens(f"invalid character $c")
+      f"invalid character $c"
+    case Primitive(n) =>
+      f"\\$n"
     case ControlSequenceToken(n, _) =>
       env.css(n) match {
         case Some(TeXMacro(name, parameters, replacement, _, _)) =>
-          toTokens(f"macro:${parameters.map(_.toString(env)).mkString}->${replacement.reverseMap(_.toString(env)).mkString}")
+          f"macro:${parameters.map(_.toString(env)).mkString}->${replacement.reverseMap(_.toString(env)).mkString}"
         case Some(TeXCounter(name, cnt)) =>
-          toTokens(f"counter:${cnt.toInt}")
+          f"counter:${cnt.toInt}"
         case Some(TeXDimension(name, dim)) =>
-          toTokens(f"dimension:${dim.toInt}")
+          f"dimension:${dim.toInt}"
         case Some(_) =>
-          toTokens(f"${env.escapechar}$n")
+          f"${env.escapechar}$n"
         case None =>
-          toTokens("undefined")
+          "undefined"
       }
     case _ =>
       throw new TeXMouthException("THIS IS A BUG. this case should never occur.", t.pos)
@@ -771,7 +773,7 @@ trait TeXMacros {
           () <- swallow
           token <- raw
           () <- swallow
-          () <- pushback(meaning(token))
+          () <- pushback(toTokens(meaning(token)))
           t <- read
         } yield t
       case t =>

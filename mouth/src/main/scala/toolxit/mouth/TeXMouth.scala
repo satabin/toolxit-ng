@@ -204,32 +204,6 @@ class TeXMouth(val env: TeXEnvironment)
     modifiers().flatMap {
       case (long, outer, global) =>
         read.flatMap {
-          case tok @ EOIToken() =>
-            throwError(new EOIException(tok.pos))
-          case tok @ CharacterToken(c, Category.END_OF_GROUP) =>
-            throwError(new TeXMouthException(f"Too many $c's.", tok.pos))
-
-          case CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
-            env.enterGroup
-            for {
-              GroupToken(_, tokens, _) <- group(true, true, true, false, true)
-              () <- pushback(tokens)
-              () = env.leaveGroup
-              c <- command
-            } yield c
-
-          case char @ CharacterToken(c, _) =>
-            if (long || outer || global) {
-              throwError(new TeXMouthException(f"You cannot use a prefix with `the letter $c'", char.pos))
-            } else {
-              // This will probably be the case most of the time,
-              // the command is simply to type set some character.
-              for {
-                () <- swallow
-                ts <- done(Typeset(c).atPos(char.pos))
-              } yield ts
-            }
-
           case p @ Primitive("def" | "gdef" | "edef" | "xdef") =>
             // define a new macro, register it and parse next command
             for {
@@ -238,18 +212,6 @@ class TeXMouth(val env: TeXEnvironment)
               c <- command
             } yield c
 
-          case p @ Primitive("par") =>
-            for (() <- swallow)
-              yield Par
-
-          case Primitive("relax") =>
-            for (() <- swallow)
-              yield Relax
-
-          case Primitive("end") =>
-            for (() <- swallow)
-              yield End
-
           case tok @ StartsAssignment() =>
             // this is an assignment
             if (long || outer) {
@@ -257,41 +219,83 @@ class TeXMouth(val env: TeXEnvironment)
             } else {
               simpleAssignment(global)
             }
+          case tok =>
 
-          case t @ ControlSequenceToken(UserDefined(cs), _) =>
-            cs match {
-              case TeXChar(_, c) =>
-                for {
-                  () <- swallow
-                  () <- pushback(CharacterToken(c, env.category(c)))
-                  // read again
-                  c <- command
-                } yield c
+            if (long || outer || global) {
+              throwError(new TeXMouthException(f"You cannot use a prefix with `${meaning(tok)}'", tok.pos))
+            } else {
+              tok match {
 
-              case TeXCsAlias(_, t) =>
-                for {
-                  () <- swallow
-                  () <- pushback(t)
-                  // read again
-                  c <- command
-                } yield c
+                case tok @ EOIToken() =>
+                  throwError(new EOIException(tok.pos))
+                case tok @ CharacterToken(c, Category.END_OF_GROUP) =>
+                  throwError(new TeXMouthException(f"Too many $c's.", tok.pos))
 
-              case TeXMacro(_, _, _, _, _) =>
-                throwError(new TeXMouthException("Macros should already be expanded in commands", t.pos))
+                case CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
+                  env.enterGroup
+                  for {
+                    GroupToken(_, tokens, _) <- group(true, true, true, false, true)
+                    () <- pushback(tokens)
+                    () = env.leaveGroup
+                    c <- command
+                  } yield c
 
-              case _ =>
-                throwError(new TeXMouthException(f"Command ${cs.name} not implemented yet", t.pos))
+                case char @ CharacterToken(c, _) =>
+                  // This will probably be the case most of the time,
+                  // the command is simply to type set some character.
+                  for {
+                    () <- swallow
+                    ts <- done(Typeset(c).atPos(char.pos))
+                  } yield ts
+
+                case p @ Primitive("par") =>
+                  for (() <- swallow)
+                    yield Par
+
+                case Primitive("relax") =>
+                  for (() <- swallow)
+                    yield Relax
+
+                case Primitive("end") =>
+                  for (() <- swallow)
+                    yield End
+
+                case t @ ControlSequenceToken(UserDefined(cs), _) =>
+                  cs match {
+                    case TeXChar(_, c) =>
+                      for {
+                        () <- swallow
+                        () <- pushback(CharacterToken(c, env.category(c)))
+                        // read again
+                        c <- command
+                      } yield c
+
+                    case TeXCsAlias(_, t) =>
+                      for {
+                        () <- swallow
+                        () <- pushback(t)
+                        // read again
+                        c <- command
+                      } yield c
+
+                    case TeXMacro(_, _, _, _, _) =>
+                      throwError(new TeXMouthException("Macros should already be expanded in commands", t.pos))
+
+                    case _ =>
+                      throwError(new TeXMouthException(f"Command ${cs.name} not implemented yet", t.pos))
+                  }
+
+                case cs @ ControlSequenceToken(name, _) =>
+                  for {
+                    () <- swallow
+                    cs <- done(CS(name).atPos(cs.pos))
+                  } yield cs
+
+                case t =>
+                  throwError(new TeXMouthException(f"Unexpected token $t instead of a TeX command", t.pos))
+
+              }
             }
-
-          case cs @ ControlSequenceToken(name, _) =>
-            for {
-              () <- swallow
-              cs <- done(CS(name).atPos(cs.pos))
-            } yield cs
-
-          case t =>
-            throwError(new TeXMouthException(f"Unexpected token $t instead of a TeX command", t.pos))
-
         }
     }
 
