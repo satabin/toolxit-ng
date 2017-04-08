@@ -117,3 +117,24 @@ case class ScriptScriptFontAssignment(number: Byte, fname: String, magnification
 
 /** Assigns a font. */
 case class FontAssignment(cs: String, fname: String, magnification: Option[Either[Dimension, Double]], global: Boolean) extends Assignment
+
+/** Assigns the value of a font parameter. */
+case class FontDimensionAssignment(parameter: Int, fname: String, magnification: Option[Either[Dimension, Double]], dimen: Dimension) extends Assignment
+
+/** Assigns the hyphenation character of a font. */
+case class HyphenationCharacterAssignment(fname: String, magnification: Option[Either[Dimension, Double]], char: Char) extends Assignment
+
+/** Assigns the skew character of a font. */
+case class SkewCharacterAssignment(fname: String, magnification: Option[Either[Dimension, Double]], char: Char) extends Assignment
+
+case class HtAssignment(number: Byte, dimen: Dimension) extends Assignment
+
+case class WdAssignment(number: Byte, dimen: Dimension) extends Assignment
+
+case class DpAssignment(number: Byte, dimen: Dimension) extends Assignment
+
+case class InteractionModeAssignment(mode: InteractionMode) extends Assignment
+
+case class SpecialIntegerAssignment(name: String, value: Int) extends Assignment
+
+case class SpecialDimensionAssignment(name: String, value: Dimension) extends Assignment

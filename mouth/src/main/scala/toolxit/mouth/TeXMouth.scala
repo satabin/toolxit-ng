@@ -84,7 +84,11 @@ class TeXMouth(val env: TeXEnvironment)
     def unapply(cs: ControlSequenceToken): Option[String] =
       env.css(cs.name) match {
         case Some(_) => None
-        case None    => Some(cs.name)
+        case None =>
+          if (Primitives.all.contains(cs.name))
+            Some(cs.name)
+          else
+            None
       }
   }
 
@@ -243,7 +247,7 @@ class TeXMouth(val env: TeXEnvironment)
             if (long || outer) {
               throwError(new TeXMouthException(f"Only prefix `\\global' is allowed for assignments", tok.pos))
             } else {
-              simpleAssignment(global)
+              assignment(global)
             }
           case tok =>
 

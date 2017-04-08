@@ -46,7 +46,7 @@ import java.io.LineNumberReader
  *  @author Lucas Satabin
  *
  */
-class TeXEnvironment(val jobname: String, finders: List[FontFinder]) {
+class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: List[FontFinder]) {
 
   // defines the registeres that get stacked when entering groups
   // registers allow for local definitions
@@ -598,6 +598,13 @@ class TeXEnvironment(val jobname: String, finders: List[FontFinder]) {
   var escapechar: Char =
     '\\'
 
+  /** The current interaction mode.
+   *
+   *  @group Globals
+   */
+  var interactionmode: InteractionMode =
+    InteractionMode.ErrorStopMode
+
   /** The special integers.
    *
    *  @group Globals
@@ -870,6 +877,6 @@ object TeXEnvironment {
 
   /** Creates a new root environment */
   def apply(jobname: String, finders: List[FontFinder]): TeXEnvironment =
-    new TeXEnvironment(jobname, finders)
+    new TeXEnvironment(false, jobname, finders)
 
 }

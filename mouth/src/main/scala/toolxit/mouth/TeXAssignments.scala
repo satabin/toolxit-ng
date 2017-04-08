@@ -24,6 +24,11 @@ trait TeXAssignments {
   this: TeXMouth =>
 
   object StartsAssignment {
+    def unapply(token: Token): Boolean =
+      StartsSimpleAssignment.unapply(token) || StartsGlobalAssignment.unapply(token)
+  }
+
+  object StartsSimpleAssignment {
     def unapply(token: Token): Boolean = token match {
       case Primitives.IntegerParameter(_) =>
         true
@@ -41,6 +46,17 @@ trait TeXAssignments {
         true
       case _ =>
         false
+    }
+  }
+
+  object StartsGlobalAssignment {
+    def unapply(token: Token): Boolean = token match {
+      case Primitive("fontdimen" | "hyphenchar" | "skewchar" | "hyphenation" | "patterns") => true
+      case Primitives.InteractionMode(_) => true
+      case Primitives.SpecialInteger(_) => true
+      case Primitives.SpecialDimension(_) => true
+      case Primitives.InternalDimension("ht" | "wd" | "dp") => true
+      case _ => false
     }
   }
 
@@ -90,7 +106,7 @@ trait TeXAssignments {
       }
     } yield cl
 
-  def simpleAssignment(global: Boolean): Processor[Command] =
+  def simpleAssignment(global: Boolean): Processor[Assignment] =
     read.flatMap {
       // chardef
       case tok @ Primitive("chardef") =>
@@ -257,6 +273,99 @@ trait TeXAssignments {
           cs <- controlsequence
         } yield Read(i, cs, global)
 
+    }
+
+  val globalAssignment: Processor[Assignment] =
+    read.flatMap {
+      case Primitive("fontdimen") =>
+        for {
+          () <- swallow
+          n <- number
+          (fn, mag) <- font
+          () <- equals
+          d <- dimen
+        } yield FontDimensionAssignment(n, fn, mag, d)
+
+      case Primitive("hyphenchar") =>
+        for {
+          () <- swallow
+          (fn, mag) <- font
+          () <- equals
+          n <- number
+        } yield HyphenationCharacterAssignment(fn, mag, n.toChar)
+
+      case Primitive("skewchar") =>
+        for {
+          () <- swallow
+          (fn, mag) <- font
+          () <- equals
+          n <- number
+        } yield SkewCharacterAssignment(fn, mag, n.toChar)
+
+      case Primitive("hyphenation") =>
+        for {
+          () <- swallow
+          exceptions <- generalText
+        } yield ???
+
+      case t @ Primitive("patterns") =>
+        if (env.ini)
+          for {
+            () <- swallow
+            exceptions <- generalText
+          } yield ???
+        else
+          throwError[Token](new TeXMouthException(f"Patterns can be loaded only by INITEX", t.pos))
+
+      case t @ Primitive("ht") =>
+        for {
+          () <- swallow
+          b <- bit8(t.pos)
+          () <- equals
+          d <- dimen
+        } yield HtAssignment(b, d)
+
+      case t @ Primitive("wd") =>
+        for {
+          () <- swallow
+          b <- bit8(t.pos)
+          () <- equals
+          d <- dimen
+        } yield WdAssignment(b, d)
+
+      case t @ Primitive("dp") =>
+        for {
+          () <- swallow
+          b <- bit8(t.pos)
+          () <- equals
+          d <- dimen
+        } yield DpAssignment(b, d)
+
+      case Primitives.InternalDimension(name) =>
+        for (() <- swallow)
+          yield InteractionModeAssignment(InteractionMode.withName(name))
+
+      case Primitives.SpecialInteger(name) =>
+        for {
+          () <- swallow
+          () <- equals
+          n <- number
+        } yield SpecialIntegerAssignment(name, n)
+
+      case Primitives.SpecialDimension(name) =>
+        for {
+          () <- swallow
+          () <- equals
+          d <- dimen
+        } yield SpecialDimensionAssignment(name, d)
+
+    }
+
+  def assignment(global: Boolean): Processor[Assignment] =
+    read.flatMap {
+      case StartsSimpleAssignment() => simpleAssignment(global)
+      case StartsGlobalAssignment() => globalAssignment
+      case t                        => throwError(new TeXMouthException("Assignment expected", t.pos))
     }
 
   def arithmetic(mode: AssignmentMode, global: Boolean): Processor[Assignment] =

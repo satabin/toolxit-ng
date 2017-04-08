@@ -51,7 +51,7 @@ class Xonsole {
 
     val tfmPath = Properties.envOrElse("XONSOLE_TFM_PATH", "/usr/share/texlive/texmf-dist/fonts/tfm/public/cm/")
 
-    val environment = new TeXEnvironment("xonsole", List(new TfmFinder(Paths.get(tfmPath))))
+    val environment = TeXEnvironment("xonsole", List(new TfmFinder(Paths.get(tfmPath))))
 
     val terminal = TerminalBuilder.builder().build()
 

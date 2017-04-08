@@ -18,7 +18,11 @@ package font
 
 import dimen._
 
-import scala.util.Try
+import scala.util.{
+  Try,
+  Success,
+  Failure
+}
 
 import scala.annotation.tailrec
 
@@ -38,6 +42,10 @@ class FontManager(finders: List[FontFinder]) {
   private val loaded = Map.empty[String, FontMetrics]
 
   private val scaled = Map.empty[String, FontMetrics]
+
+  private val hyphenchars = Map.empty[String, Char]
+
+  private val skewchars = Map.empty[String, Char]
 
   /** Finds the font, loading it if necessary, and scaling it. */
   def font(name: String, magnification: Option[Either[Dimension, Double]]): Try[FontMetrics] = Try {
@@ -89,6 +97,34 @@ class FontManager(finders: List[FontFinder]) {
       else
         scaled(n) = f1
     }
+
+  object hyphenchar {
+    def apply(name: String, magnification: Option[Either[Dimension, Double]]): Option[Char] =
+      fontname(name, magnification) match {
+        case Success(name) => hyphenchars.get(name)
+        case Failure(t)    => throw t
+      }
+
+    def update(name: String, magnification: Option[Either[Dimension, Double]], char: Char): Unit =
+      fontname(name, magnification) match {
+        case Success(name) => hyphenchars(name) = char
+        case Failure(t)    => throw t
+      }
+  }
+
+  object skewchar {
+    def apply(name: String, magnification: Option[Either[Dimension, Double]]): Option[Char] =
+      fontname(name, magnification) match {
+        case Success(name) => skewchars.get(name)
+        case Failure(t)    => throw t
+      }
+
+    def update(name: String, magnification: Option[Either[Dimension, Double]], char: Char): Unit =
+      fontname(name, magnification) match {
+        case Success(name) => skewchars(name) = char
+        case Failure(t)    => throw t
+      }
+  }
 
   private def load(name: String): FontMetrics = {
     @tailrec

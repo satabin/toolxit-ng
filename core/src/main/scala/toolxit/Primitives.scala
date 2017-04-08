@@ -357,6 +357,23 @@ object Primitives {
     }
   }
 
+  val hyphenation = Set(
+    "hyphenation",
+    "patterns")
+
+  val interactionMode = Set(
+    "errorstopmode",
+    "scrollmode",
+    "nonstopmode",
+    "batchmode")
+
+  object InteractionMode {
+    def unapply(token: Token): Option[String] = token match {
+      case ControlSequenceToken(name, _) if interactionMode.contains(name) => Some(name)
+      case _ => None
+    }
+  }
+
   val all =
     expandablePrimitives ++
       integerParameter ++
@@ -369,6 +386,8 @@ object Primitives {
       codename ++
       specialDimension ++
       internalDimension ++
-      font
+      font ++
+      hyphenation ++
+      interactionMode
 
 }

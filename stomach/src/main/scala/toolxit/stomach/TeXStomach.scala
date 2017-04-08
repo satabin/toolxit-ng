@@ -78,6 +78,24 @@ class TeXStomach(env: TeXEnvironment, out: PrintWriter) extends Iteratees[Comman
       env.scriptscriptfont(number, global) = (fname, magnification)
     case FontAssignment(name, fname, mag, global) =>
       env.css(name, global) = TeXFont(name, fname, mag)
+    case FontDimensionAssignment(param, fname, mag, dimen) =>
+      env.fontManager.update(fname, mag, param, dimen)
+    case HyphenationCharacterAssignment(fname, mag, c) =>
+      env.fontManager.hyphenchar(fname, mag) = c
+    case SkewCharacterAssignment(fname, mag, c) =>
+      env.fontManager.skewchar(fname, mag) = c
+    case HtAssignment(num, value) =>
+      env.ht(num) = value
+    case WdAssignment(num, value) =>
+      env.wd(num) = value
+    case DpAssignment(num, value) =>
+      env.dp(num) = value
+    case InteractionModeAssignment(mode) =>
+      env.interactionmode = mode
+    case SpecialIntegerAssignment(name, value) =>
+      env.integers(name) = value
+    case SpecialDimensionAssignment(name, value) =>
+      env.dimensions(name) = value
     case Read(inputno, cs, global) =>
     // TODO read next line in input number if exists and is open. otherwise read from stdin
   }
