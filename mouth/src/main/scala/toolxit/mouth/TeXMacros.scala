@@ -560,43 +560,33 @@ trait TeXMacros {
     } yield ()
   }
 
-  def expandInput: Processor[Token] = {
-    def loop(acc: StringBuilder): Processor[String] =
-      read.flatMap {
-        case t @ (CharacterToken(_, Category.SPACE) | ControlSequenceToken(_, _)) if acc.nonEmpty =>
-          val name =
-            if (acc.endsWith(".tex"))
-              acc.toString
-            else
-              acc + ".tex"
-          val f = new File(name)
-          if (f.exists) {
-            for (() <- swallow)
-              yield name
-          } else {
-            throwError(new TeXMouthException(f"I can't find file `$acc'.", t.pos))
-          }
-        case CharacterToken(c, _) =>
-          for {
-            () <- swallow
-            t <- loop(acc.append(c))
-          } yield t
-        case t =>
-          throwError(new TeXMouthException("Missing input file name", t.pos))
-      }
+  def expandInput: Processor[Token] =
     raw.flatMap {
       case ControlSequenceToken("input", _) =>
         for {
           // read the filename which consists in all the consecutive non space character tokens following the input macro
           () <- swallow
-          name <- loop(new StringBuilder)
-          () <- openInput(name)
+          t <- read
+          name <- filename(new StringBuilder)
+          rname <- {
+            val rname =
+              if (name.endsWith(".tex"))
+                name
+              else
+                name + ".tex"
+            val f = new File(rname)
+            if (f.exists) {
+              done(rname)
+            } else {
+              throwError[Token](new TeXMouthException(f"I can't find file `$name'.", t.pos))
+            }
+          }
+          () <- openInput(rname)
           t <- read
         } yield t
       case t =>
         throwError(new TeXMouthException("expected \\input command", t.pos))
     }
-  }
 
   private val decimals = Vector(1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1)
   private val romans = Vector(

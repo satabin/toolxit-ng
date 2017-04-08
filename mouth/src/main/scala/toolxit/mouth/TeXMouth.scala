@@ -16,13 +16,14 @@
 package toolxit
 package mouth
 
+import util._
+import font._
+
 import scala.util.{
   Try,
   Success,
   Failure
 }
-
-import util._
 
 import java.io.{
   FileReader,
@@ -143,7 +144,7 @@ class TeXMouth(val env: TeXEnvironment)
     }
 
   /** Returns the next token, expanded if necessary */
-  protected[this] lazy val read: Processor[Token] =
+  lazy val read: Processor[Token] =
     raw.flatMap { token =>
       if (!env.expanding)
         done(token)
@@ -197,6 +198,18 @@ class TeXMouth(val env: TeXEnvironment)
                   for {
                     () <- swallow
                     t <- raw
+                  } yield t
+                case "fontname" =>
+                  for {
+                    () <- swallow
+                    t <- raw
+                    (fn, mag) <- font
+                    () <- env.fontManager.fontname(fn, mag) match {
+                      case Success(name)                        => pushback(name.reverseMap(new CharacterToken(_, Category.OTHER_CHARACTER)))
+                      case Failure(FontNotFoundException(name)) => throwError[Token](new TeXMouthException(f"Can't find font `$name'.", t.pos))
+                      case Failure(t)                           => throw t
+                    }
+                    t <- read
                   } yield t
                 case _ =>
                   if (env.inReplacement)
@@ -554,5 +567,26 @@ class TeXMouth(val env: TeXEnvironment)
           throwError[Token](new TeXMouthException("Explicit or implicit beginning of group character expected", t.pos))
       }
     } yield l
+
+  def filename(acc: StringBuilder): Processor[String] = {
+    def loop(): Processor[String] =
+      read.flatMap {
+        case t @ (CharacterToken(_, Category.SPACE) | ControlSequenceToken(_, _)) if acc.nonEmpty =>
+          for (() <- swallow)
+            yield acc.toString
+        case CharacterToken(c, _) =>
+          for {
+            () <- swallow
+            _ = acc.append(c)
+            t <- loop()
+          } yield t
+        case t =>
+          throwError(new TeXMouthException("Missing input file name", t.pos))
+      }
+    for {
+      () <- spaces
+      n <- loop()
+    } yield n
+  }
 
 }

@@ -35,6 +35,8 @@ trait TeXAssignments {
         true
       case Primitive("count" | "dimen" | "advance" | "multiply" | "divide" | "chardef" | "countdef" | "dimendef" | "let" | "futurelet" | "read" | "font" | "nullfont") =>
         true
+      case Primitives.Font("textfont" | "scriptfont" | "scriptscriptfont") =>
+        true
       case Primitives.Codename(_) =>
         true
       case _ =>
@@ -56,11 +58,37 @@ trait TeXAssignments {
 
   val to = keyword("to", false)
 
+  val at = keyword("at", true)
+
+  val scaled = keyword("scaled", true)
+
   val controlsequence: Processor[String] =
     raw.flatMap {
       case ControlSequenceToken(name, _) => swallow.andThen(done(name))
       case tok                           => throwError(new TeXMouthException(f"Expected control sequence but got $tok.", tok.pos))
     }
+
+  val atClause: Processor[Option[Either[Dimension, Double]]] =
+    for {
+      () <- spaces
+      t <- read
+      cl <- t match {
+        case CharacterToken('a' | 'A', _) =>
+          // potential at clause
+          for {
+            t <- at
+            cl <- if (t) dimen.map(d => Some(Left(d))) else done(None)
+          } yield cl
+        case CharacterToken('s' | 'S', _) =>
+          // potential scaled clause
+          for {
+            t <- scaled
+            cl <- if (t) number.map(n => Some(Right(n.toDouble / 1000))) else done(None)
+          } yield cl
+        case _ =>
+          done(None)
+      }
+    } yield cl
 
   def simpleAssignment(global: Boolean): Processor[Command] =
     read.flatMap {
@@ -156,6 +184,40 @@ trait TeXAssignments {
         for {
           () <- swallow
         } yield CurrentFontAssignment(fname, mag, global)
+
+      // family assignment
+      case t @ FontRange("textfont") =>
+        for {
+          () <- swallow
+          n <- catNumber(t.pos)
+          () <- equals
+          (fn, mag) <- font
+        } yield TextFontAssignment(n, fn, mag, global)
+
+      case t @ FontRange("scriptfont") =>
+        for {
+          () <- swallow
+          n <- catNumber(t.pos)
+          () <- equals
+          (fn, mag) <- font
+        } yield ScriptFontAssignment(n, fn, mag, global)
+
+      case t @ FontRange("scriptscriptfont") =>
+        for {
+          () <- swallow
+          n <- catNumber(t.pos)
+          () <- equals
+          (fn, mag) <- font
+        } yield ScriptScriptFontAssignment(n, fn, mag, global)
+
+      case ControlSequenceToken("font", _) =>
+        for {
+          () <- swallow
+          cs <- controlsequence
+          () <- equals
+          fname <- filename(new StringBuilder)
+          at <- atClause
+        } yield FontAssignment(cs, fname, at, global)
 
       // arithmetic
       case ControlSequenceToken("advance", _) =>

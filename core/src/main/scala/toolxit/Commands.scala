@@ -105,3 +105,15 @@ case class Read(inputno: Byte, cs: String, global: Boolean) extends Assignment
 
 /** Assigns the current font to the given one. */
 case class CurrentFontAssignment(fname: String, magnification: Option[Either[Dimension, Double]], global: Boolean) extends Assignment
+
+/** Assigns the given textfont. */
+case class TextFontAssignment(number: Byte, fname: String, magnification: Option[Either[Dimension, Double]], global: Boolean) extends Assignment
+
+/** Assigns the given scriptfont. */
+case class ScriptFontAssignment(number: Byte, fname: String, magnification: Option[Either[Dimension, Double]], global: Boolean) extends Assignment
+
+/** Assigns the given scriptscriptfont. */
+case class ScriptScriptFontAssignment(number: Byte, fname: String, magnification: Option[Either[Dimension, Double]], global: Boolean) extends Assignment
+
+/** Assigns a font. */
+case class FontAssignment(cs: String, fname: String, magnification: Option[Either[Dimension, Double]], global: Boolean) extends Assignment

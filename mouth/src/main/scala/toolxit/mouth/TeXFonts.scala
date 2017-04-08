@@ -23,7 +23,31 @@ import font._
 trait TeXFonts {
   this: TeXMouth =>
 
-  lazy val font: Processor[(String, Option[Either[Dimension, Double]])] =
+  val familyMember: Processor[(String, Option[Either[Dimension, Double]])] =
+    for {
+      t <- read
+      f <- t match {
+        case t @ FontRange("textfont") =>
+          for {
+            () <- swallow
+            n <- catNumber(t.pos)
+          } yield env.textfont(n).get
+        case FontRange("scriptfont") =>
+          for {
+            () <- swallow
+            n <- catNumber(t.pos)
+          } yield env.scriptfont(n).get
+        case FontRange("scriptscriptfont") =>
+          for {
+            () <- swallow
+            n <- catNumber(t.pos)
+          } yield env.scriptscriptfont(n).get
+        case _ =>
+          throwError[Token](new TeXMouthException("Family member expected", t.pos))
+      }
+    } yield f
+
+  val font: Processor[(String, Option[Either[Dimension, Double]])] =
     for {
       t <- read
       f <- t match {
@@ -33,25 +57,19 @@ trait TeXFonts {
         case Primitives.Font("font") =>
           for (() <- swallow)
             yield env.font().get
-        case t @ Primitives.Font("textfont") =>
-          for {
-            () <- swallow
-            n <- catNumber(t.pos)
-          } yield env.textfont(n).get
-        case Primitives.Font("scriptfont") =>
-          for {
-            () <- swallow
-            n <- catNumber(t.pos)
-          } yield env.scriptfont(n).get
-        case Primitives.Font("scriptscriptfont") =>
-          for {
-            () <- swallow
-            n <- catNumber(t.pos)
-          } yield env.scriptscriptfont(n).get
+        case FontRange(_) =>
+          familyMember
         case _ =>
           throwError[Token](new TeXMouthException("Font expected", t.pos))
       }
     } yield f
+
+  object FontRange {
+    def unapply(token: Token): Option[String] = token match {
+      case Primitives.Font(name @ ("textfont" | "scriptfont" | "scriptscriptfont")) => Some(name)
+      case _ => None
+    }
+  }
 
 }
 
