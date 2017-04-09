@@ -19,6 +19,7 @@ package mouth
 import util._
 import dimen._
 import font._
+import box._
 
 trait TeXAssignments {
   this: TeXMouth =>
@@ -38,7 +39,7 @@ trait TeXAssignments {
         true
       case FontdefToken(_, _) =>
         true
-      case Primitive("count" | "dimen" | "advance" | "multiply" | "divide" | "chardef" | "countdef" | "dimendef" | "let" | "futurelet" | "read" | "font" | "nullfont") =>
+      case Primitive("count" | "dimen" | "advance" | "multiply" | "divide" | "chardef" | "countdef" | "dimendef" | "let" | "futurelet" | "read" | "font" | "nullfont" | "setbox") =>
         true
       case Primitives.Font("textfont" | "scriptfont" | "scriptscriptfont") =>
         true
@@ -201,6 +202,11 @@ trait TeXAssignments {
           () <- swallow
         } yield CurrentFontAssignment(fname, mag, global)
 
+      case ControlSequenceToken("nullfont", _) =>
+        for {
+          () <- swallow
+        } yield CurrentFontAssignment("nullfont", None, global)
+
       // family assignment
       case t @ FontRange("textfont") =>
         for {
@@ -272,6 +278,15 @@ trait TeXAssignments {
           () <- spaces
           cs <- controlsequence
         } yield Read(i, cs, global)
+
+      case tok @ ControlSequenceToken("setbox", _) =>
+        for {
+          () <- swallow
+          n <- bit8(tok.pos)
+          () <- equals
+          () <- filler
+          b <- boxAssignment(n)
+        } yield b
 
     }
 
@@ -410,6 +425,82 @@ trait TeXAssignments {
           throwError[Token](new TeXMouthException("variable expected", tok.pos))
       }
     } yield asgn
+
+  private def boxAssignment(n: Byte): Processor[Assignment] =
+    read.flatMap {
+      case t @ Primitives.Box("box") =>
+        for {
+          () <- swallow
+          b <- bit8(t.pos)
+        } yield BoxAssignment(n, BoxRegister(b, false))
+
+      case t @ Primitives.Box("copy") =>
+        for {
+          () <- swallow
+          b <- bit8(t.pos)
+        } yield BoxAssignment(n, BoxRegister(b, true))
+
+      case t @ Primitives.Box("lastbox") =>
+        if (env.mode == Mode.MathMode)
+          throwError(new TeXMouthException("", t.pos))
+        else
+          for (() <- swallow)
+            yield BoxAssignment(n, LastBox)
+
+      case t @ Primitives.Box("vsplit") =>
+        for {
+          () <- swallow
+          b <- bit8(t.pos)
+          _ <- to
+          d <- dimen
+        } yield BoxAssignment(n, VSplit(b, d))
+
+      case Primitives.Box("hbox") =>
+        for {
+          () <- swallow
+          spec <- boxSpecification
+          t <- read
+          () <- t match {
+            case ExplicitOrImplicit(CharacterToken(_, Category.BEGINNING_OF_GROUP)) =>
+              for (() <- swallow)
+                yield env.enterMode(Mode.RestrictedHorizontalMode)
+            case _ =>
+              throwError[Token](new TeXMouthException("Implicit or explicit beginning of group expected", t.pos))
+          }
+        } yield StartHBoxAssignment(n, spec)
+
+      case Primitives.Box("vbox") =>
+        for {
+          () <- swallow
+          spec <- boxSpecification
+          t <- read
+          () <- t match {
+            case ExplicitOrImplicit(CharacterToken(_, Category.BEGINNING_OF_GROUP)) =>
+              for (() <- swallow)
+                yield env.enterMode(Mode.RestrictedHorizontalMode)
+            case _ =>
+              throwError[Token](new TeXMouthException("Implicit or explicit beginning of group expected", t.pos))
+          }
+        } yield StartVBoxAssignment(n, spec)
+
+      case Primitives.Box("vtop") =>
+        for {
+          () <- swallow
+          spec <- boxSpecification
+          t <- read
+          () <- t match {
+            case ExplicitOrImplicit(CharacterToken(_, Category.BEGINNING_OF_GROUP)) =>
+              for (() <- swallow)
+                yield env.enterMode(Mode.RestrictedHorizontalMode)
+            case _ =>
+              throwError[Token](new TeXMouthException("Implicit or explicit beginning of group expected", t.pos))
+          }
+        } yield StartVTopAssignment(n, spec)
+
+    }
+
+  private val boxSpecification: Processor[Specification] =
+    ???
 
   object CountdefToken {
     def unapply(token: Token): Option[Byte] = token match {

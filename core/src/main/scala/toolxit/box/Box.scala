@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2015 Lucas Satabin
+* Copyright (c) 2017 Lucas Satabin
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,24 +14,25 @@
 * limitations under the License.
 */
 package toolxit
+package box
 
-import enumeratum._
+import dimen._
 
-/** A mode in which TeX is.
- *
- *  @author Lucas Satabin
- *
- */
-sealed trait Mode extends EnumEntry
+sealed trait Box
 
-object Mode extends Enum[Mode] {
+case class BoxRegister(number: Byte, copy: Boolean) extends Box
 
-  def values = findValues
+case object LastBox extends Box
 
-  case object VerticalMode extends Mode
-  case object InternalVerticalMode extends Mode
-  case object HorizontalMode extends Mode
-  case object RestrictedHorizontalMode extends Mode
-  case object MathMode extends Mode
-  case object DisplayMathMode extends Mode
-}
+case class VSplit(number: Byte, height: Dimension) extends Box
+
+case class HBox() extends Box
+
+case class VBox(contents: List[Command]) extends Box
+
+case class VTop(contents: List[Command]) extends Box
+
+sealed trait Specification
+
+case class To(dimen: Dimension) extends Specification
+case class Spread(dimen: Option[Dimension]) extends Specification

@@ -374,6 +374,22 @@ object Primitives {
     }
   }
 
+  val box = Set(
+    "box",
+    "copy",
+    "lastbox",
+    "vsplit",
+    "hbox",
+    "vbox",
+    "vtop")
+
+  object Box {
+    def unapply(token: Token): Option[String] = token match {
+      case ControlSequenceToken(name, _) if box.contains(name) => Some(name)
+      case _ => None
+    }
+  }
+
   val all =
     expandablePrimitives ++
       integerParameter ++
@@ -388,6 +404,7 @@ object Primitives {
       internalDimension ++
       font ++
       hyphenation ++
-      interactionMode
+      interactionMode ++
+      box
 
 }

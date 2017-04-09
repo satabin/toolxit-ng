@@ -17,6 +17,7 @@ package toolxit
 
 import dimen._
 import font._
+import box._
 import util._
 
 import enumeratum._
@@ -138,3 +139,11 @@ case class InteractionModeAssignment(mode: InteractionMode) extends Assignment
 case class SpecialIntegerAssignment(name: String, value: Int) extends Assignment
 
 case class SpecialDimensionAssignment(name: String, value: Dimension) extends Assignment
+
+case class BoxAssignment(target: Byte, box: Box) extends Assignment
+
+case class StartHBoxAssignment(number: Byte, spec: Specification) extends Assignment
+
+case class StartVBoxAssignment(number: Byte, spec: Specification) extends Assignment
+
+case class StartVTopAssignment(number: Byte, spec: Specification) extends Assignment

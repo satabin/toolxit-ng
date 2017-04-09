@@ -105,6 +105,20 @@ class TeXMouth(val env: TeXEnvironment)
       }
   }
 
+  object ExplicitOrImplicit {
+    def unapply(token: Token): Option[CharacterToken] =
+      token match {
+        case c @ CharacterToken(_, _) => Some(c)
+        case ControlSequenceToken(n, _) =>
+          env.css(n) match {
+            case Some(TeXChar(_, c)) => Some(c)
+            case _                   => None
+          }
+        case _ =>
+          None
+      }
+  }
+
   object UserDefined {
     @inline
     def unapply(name: String): Option[ControlSequence] =

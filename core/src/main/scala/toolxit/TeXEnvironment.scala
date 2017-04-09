@@ -100,12 +100,32 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
   var state: ReadingState.Value =
     ReadingState.N
 
+  // the stack of modes
+  private var modes = List1[Mode](Mode.VerticalMode)
+
   /** The current parsing mode.
    *
    *  @group Globals
    */
-  var mode: Mode.Value =
-    Mode.VerticalMode
+  def mode: Mode =
+    modes.head
+
+  /** Enters the given mode. */
+  def enterMode(mode: Mode): Unit =
+    modes ::= mode
+
+  /** Leaves the current mode, restoring the previous one.
+   *  If a mode was left, returns it. If no mode was to leave, return `None` and does nothing.
+   */
+  def leaveMode(): Option[Mode] =
+    modes match {
+      case More(m, rest) =>
+        // We can never leave the initial vertical mode
+        modes = rest
+        Some(m)
+      case _ =>
+        None
+    }
 
   /** The current expansion state.
    *
