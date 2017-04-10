@@ -135,7 +135,10 @@ class FontManager(finders: List[FontFinder]) {
       }
       case Nil => throw new FontNotFoundException(name)
     }
-    loop(finders)
+    name match {
+      case "nullfont" => NullFont
+      case _          => loop(finders)
+    }
   }
 
 }

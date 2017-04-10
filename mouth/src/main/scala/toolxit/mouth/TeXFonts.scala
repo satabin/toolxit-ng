@@ -56,7 +56,7 @@ trait TeXFonts {
             yield (fn, mag)
         case Primitives.Font("font") =>
           for (() <- swallow)
-            yield env.font().get
+            yield env.font().getOrElse(("nullfont", None))
         case FontRange(_) =>
           familyMember
         case _ =>
