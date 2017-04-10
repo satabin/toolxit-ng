@@ -390,6 +390,13 @@ object Primitives {
     }
   }
 
+  val group = Set(
+    "begingroup",
+    "endgroup")
+
+  val other = Set(
+    "par")
+
   val all =
     expandablePrimitives ++
       integerParameter ++
@@ -405,6 +412,8 @@ object Primitives {
       font ++
       hyphenation ++
       interactionMode ++
-      box
+      box ++
+      group ++
+      other
 
 }

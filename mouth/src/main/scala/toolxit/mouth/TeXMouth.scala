@@ -284,11 +284,9 @@ class TeXMouth(val env: TeXEnvironment)
                   }
 
                 case CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
-                  env.enterGroup
                   for {
                     GroupToken(_, tokens, _) <- group(true, true, true, false, true)
                     () <- pushback(tokens)
-                    () = env.leaveGroup
                     c <- command
                   } yield c
 
@@ -299,6 +297,13 @@ class TeXMouth(val env: TeXEnvironment)
                     () <- swallow
                     ts <- done(Typeset(c).atPos(char.pos))
                   } yield ts
+
+                case Primitive("begingroup") =>
+                  for {
+                    GroupToken(_, tokens, _) <- group(true, true, true, false, true)
+                    () <- pushback(tokens)
+                    c <- command
+                  } yield c
 
                 case p @ Primitive("par") =>
                   for (() <- swallow)
@@ -391,34 +396,64 @@ class TeXMouth(val env: TeXEnvironment)
    */
   def group(reverted: Boolean, allowOuter: Boolean, allowPar: Boolean, withParams: Boolean, localScope: Boolean): Processor[GroupToken] = {
     val read = onEOI("End of input reached while parsing group")(this.read)
-    def loop(level: Int, open: Token, acc: List[Token]): Processor[GroupToken] = read.flatMap {
-      case tok @ CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
+    def loop(closeWithCs: List1[Boolean], open: Token, acc: List[Token]): Processor[GroupToken] = read.flatMap {
+      case tok @ (CharacterToken(_, Category.BEGINNING_OF_GROUP) | Primitive("begingroup")) =>
+        val closeWithCs1 = tok match {
+          case Primitive("begingroup") => true
+          case _                       => false
+        }
         for {
           // start a new nested group, consume the opening token
           () <- swallow
           () = env.enterGroup
           // and parses the rest adding the opening token to the accumulator
-          g <- loop(level + 1, open, tok :: acc)
+          g <- loop(More(closeWithCs1, closeWithCs), open, tok :: acc)
           () = env.leaveGroup
         } yield g
 
-      case tok @ CharacterToken(_, Category.END_OF_GROUP) if level == 0 =>
-        for {
-          // closing the top-level group, this is an exit condition, consume the token
-          () <- swallow
-          // and return the built group
-        } yield if (reverted) GroupToken(open, acc, tok) else GroupToken(open, acc.reverse, tok)
+      case tok @ CharacterToken(c, Category.END_OF_GROUP) =>
+        closeWithCs match {
+          case One(false) =>
+            for {
+              // closing the top-level group, this is an exit condition, consume the token
+              () <- swallow
+              // and return the built group
+            } yield if (reverted) GroupToken(open, acc, tok) else GroupToken(open, acc.reverse, tok)
+          case One(true) | More(true, _) =>
+            // we were expecting to close with `\endgroup`
+            throwError(new TeXMouthException(f"Extra $c, or forgotten \\endgroup.", tok.pos))
+          case More(false, tail) =>
+            for {
+              // closing a nested group, consume the character
+              () <- swallow
+              // and continue, adding it to the accumulator
+              g <- loop(tail, open, tok :: acc)
+            } yield g
+        }
 
-      case tok @ CharacterToken(_, Category.END_OF_GROUP) =>
-        for {
-          // closing a nested group, consume the character
-          () <- swallow
-          // and continue, adding it to the accumulator
-          g <- loop(level - 1, open, tok :: acc)
-        } yield g
+      case tok @ Primitive("endgroup") =>
+        closeWithCs match {
+          case One(true) =>
+            for {
+              // closing the top-level group, this is an exit condition, consume the token
+              () <- swallow
+              // and return the built group
+            } yield if (reverted) GroupToken(open, acc, tok) else GroupToken(open, acc.reverse, tok)
+          case One(false) | More(false, _) =>
+            // we were expecting to close with `\endgroup`
+            throwError(new TeXMouthException(f"Missing }.", tok.pos))
+          case More(true, tail) =>
+            for {
+              // closing a nested group, consume the character
+              () <- swallow
+              // and continue, adding it to the accumulator
+              g <- loop(tail, open, tok :: acc)
+            } yield g
+        }
 
       case tok @ ControlSequenceToken("par", _) if !allowPar =>
         throwError(new TeXMouthException("`\\par` is not allowed in parameter text", tok.pos))
+
       case tok @ ControlSequenceToken(name, _) if !allowOuter && env.css.isOuter(name) =>
         // macro declared as `outer' are not allowed in the parameter text
         throwError(new TeXMouthException(f"Macro $name declared as `\\outer` is not allowed in parameter text", tok.pos))
@@ -441,7 +476,7 @@ class TeXMouth(val env: TeXEnvironment)
           () <- swallow
           tok <- read
           tok <- parameter(tok)
-          g <- loop(level, open, tok :: acc)
+          g <- loop(closeWithCs, open, tok :: acc)
         } yield g
 
       case tok =>
@@ -449,19 +484,23 @@ class TeXMouth(val env: TeXEnvironment)
           // any other character is consumed
           () <- swallow
           // and added to the accumulator
-          g <- loop(level, open, tok :: acc)
+          g <- loop(closeWithCs, open, tok :: acc)
         } yield g
 
     }
     read.flatMap {
-      case tok @ CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
+      case tok @ (CharacterToken(_, Category.BEGINNING_OF_GROUP) | Primitive("begingroup")) =>
+        val closeWithCs = tok match {
+          case Primitive("begingroup") => true
+          case _                       => false
+        }
         for {
           // ok, so we start a new group
           // consume the opening token
           () <- swallow
           () = if (localScope) env.enterGroup
           // and loop until this group is correctly closed
-          g <- loop(0, tok, Nil)
+          g <- loop(List1(closeWithCs), tok, Nil)
           () = if (localScope) env.leaveGroup
         } yield g
       case tok =>
