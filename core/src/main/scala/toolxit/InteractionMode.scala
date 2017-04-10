@@ -16,9 +16,8 @@
 package toolxit
 
 import enumeratum._
-import enumeratum.EnumEntry._
 
-sealed trait InteractionMode extends EnumEntry with Lowercase
+sealed trait InteractionMode extends EnumEntry with EnumEntry.Lowercase
 object InteractionMode extends Enum[InteractionMode] {
   val values = findValues
 
