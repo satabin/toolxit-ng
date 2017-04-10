@@ -50,6 +50,10 @@ class TeXStomach(env: TeXEnvironment, out: PrintWriter) extends Iteratees[Comman
       env.integerParameter(name, mode, global) = v
     case CategoryAssignment(char, cat, global) =>
       env.category(char, global) = cat
+    case LccodeAssignment(char, lc, global) =>
+      env.lccode(char, global) = lc
+    case UccodeAssignment(char, uc, global) =>
+      env.uccode(char, global) = uc
     case CharacterDefinition(name, char, global) =>
       env.css(name, global) = TeXChar(name, char)
     case CounterDefinition(name, number, global) =>

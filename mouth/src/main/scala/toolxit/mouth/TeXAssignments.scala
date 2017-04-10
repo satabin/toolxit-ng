@@ -271,6 +271,22 @@ trait TeXAssignments {
           cat <- catNumber(tok.pos)
         } yield CategoryAssignment(c, Category.withValue(cat), global)
 
+      case tok @ Primitives.Codename("uccode") =>
+        for {
+          () <- swallow
+          c <- char(tok.pos)
+          () <- equals
+          uc <- char(tok.pos)
+        } yield UccodeAssignment(c, uc, global)
+
+      case tok @ Primitives.Codename("lccode") =>
+        for {
+          () <- swallow
+          c <- char(tok.pos)
+          () <- equals
+          lc <- char(tok.pos)
+        } yield LccodeAssignment(c, lc, global)
+
       // read
       case tok @ ControlSequenceToken("read", _) =>
         for {

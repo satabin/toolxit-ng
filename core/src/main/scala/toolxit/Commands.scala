@@ -89,6 +89,12 @@ case class DimensionAssignment(id: Byte, value: Int, mode: AssignmentMode, globa
 /** A character category assignment */
 case class CategoryAssignment(c: Char, cat: Category, global: Boolean) extends Assignment
 
+/** A caracter uppercase code assignment. */
+case class UccodeAssignment(c: Char, uc: Char, global: Boolean) extends Assignment
+
+/** A caracter loweercase code assignment. */
+case class LccodeAssignment(c: Char, lc: Char, global: Boolean) extends Assignment
+
 /** A character definition. */
 case class CharacterDefinition(name: String, c: CharacterToken, global: Boolean) extends Assignment
 

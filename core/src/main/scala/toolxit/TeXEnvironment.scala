@@ -55,6 +55,12 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
     // the map from character to category code
     val categories = Map.empty[Char, Category]
 
+    // the map from cahracter to its uppercase character
+    val uccodes = Map.empty[Char, Char]
+
+    // the map from cahracter to its lowercase character
+    val lccodes = Map.empty[Char, Char]
+
     // the map from cs name to its internal representation
     val controlSequences = Map.empty[String, ControlSequence]
 
@@ -254,6 +260,70 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
     def update(char: Char, global: Boolean, category: Category): Unit = {
       val cats = if (global) root.categories else locals.categories
       cats(char) = category
+    }
+
+  }
+
+  /** Exposes uccode management functions.
+   *
+   *  @group Registers
+   */
+  object uccode {
+
+    /** Returns the uppercase character of the given character in the current environment. */
+    def apply(char: Char): Char =
+      lookupRegister(char, (_.uccodes), locals) match {
+        case Some(c) =>
+          c
+        case None =>
+          // if not specified otherwise, UTF-8 letters are in category `letter`
+          if (char.isLetter)
+            char.toUpper
+          else
+            char
+      }
+
+    /** Sets the uppercase of the given character. This setting is scoped
+     *  to the current group only, and will be discarded when leaving the group.
+     */
+    def update(char: Char, uc: Char): Unit =
+      locals.uccodes(char) = uc
+
+    def update(char: Char, global: Boolean, uc: Char): Unit = {
+      val uccodes = if (global) root.uccodes else locals.uccodes
+      uccodes(char) = uc
+    }
+
+  }
+
+  /** Exposes lccode management functions.
+   *
+   *  @group Registers
+   */
+  object lccode {
+
+    /** Returns the lowercase character of the given character in the current environment. */
+    def apply(char: Char): Char =
+      lookupRegister(char, (_.lccodes), locals) match {
+        case Some(c) =>
+          c
+        case None =>
+          // if not specified otherwise, UTF-8 letters are in category `letter`
+          if (char.isLetter)
+            char.toLower
+          else
+            char
+      }
+
+    /** Sets the lowercase of the given character. This setting is scoped
+     *  to the current group only, and will be discarded when leaving the group.
+     */
+    def update(char: Char, lc: Char): Unit =
+      locals.lccodes(char) = lc
+
+    def update(char: Char, global: Boolean, lc: Char): Unit = {
+      val lccodes = if (global) root.lccodes else locals.lccodes
+      lccodes(char) = lc
     }
 
   }
