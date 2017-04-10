@@ -29,8 +29,6 @@ import util._
  */
 class TeXEyes(env: TeXEnvironment) extends Iteratees[(Char, Option[String], Int, Int)] {
 
-  type Processor[T] = Iteratee[(Char, Option[String], Int, Int), T]
-
   object Hexa {
     val hexaLower = "0123456789abcdef"
     def unapply(c: Char): Option[Int] = {

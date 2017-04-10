@@ -22,6 +22,8 @@ import scala.util.Try
 
 abstract class Iteratees[Elt] {
 
+  type Processor[+T] = Iteratee[Elt, T]
+
   def setEos(s: Stream[Elt]): Exception = s match {
     case Eos(Some(e)) => e
     case _            => exnEos

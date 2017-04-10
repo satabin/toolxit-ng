@@ -24,8 +24,6 @@ import java.io.PrintWriter
 
 class TeXStomach(env: TeXEnvironment, out: PrintWriter) extends Iteratees[Command] {
 
-  type Processor[+T] = Iteratee[Command, T]
-
   lazy val process: Processor[Unit] = headOption.flatMap {
     case Some(End) =>
       throwError(EndException)

@@ -58,8 +58,6 @@ class TeXMouth(val env: TeXEnvironment)
     with TeXFonts
     with TeXAssignments {
 
-  type Processor[T] = Iteratee[Token, T]
-
   def accept(token: Token): Processor[Unit] =
     read.flatMap { t =>
       if (t == token) {
