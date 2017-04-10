@@ -232,8 +232,8 @@ trait TeXAssignments {
           () <- filler
           t <- read
           toks <- t match {
-            case StartsTokenVariable() => tokenVariable
-            case _                     => generalText(true)
+            case StartsTokenVariable() => tokens
+            case _                     => generalText(false)
           }
         } yield TokensParameterAssignment(name, toks, global)
 
@@ -244,8 +244,8 @@ trait TeXAssignments {
           () <- filler
           t <- read
           toks <- t match {
-            case StartsTokenVariable() => tokenVariable
-            case _                     => generalText(true)
+            case StartsTokenVariable() => tokens
+            case _                     => generalText(false)
           }
         } yield TokensAssignment(n, toks, global)
 
@@ -257,8 +257,8 @@ trait TeXAssignments {
           () <- filler
           t <- read
           toks <- t match {
-            case StartsTokenVariable() => tokenVariable
-            case _                     => generalText(true)
+            case StartsTokenVariable() => tokens
+            case _                     => generalText(false)
           }
         } yield TokensAssignment(n, toks, global)
 

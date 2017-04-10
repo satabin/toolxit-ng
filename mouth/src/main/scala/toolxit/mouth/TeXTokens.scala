@@ -23,7 +23,7 @@ import scala.util.Try
 trait TeXTokens {
   this: TeXMouth =>
 
-  val tokenVariable: Processor[List[Token]] =
+  val tokens: Processor[List[Token]] =
     for {
       t <- read
       v <- t match {

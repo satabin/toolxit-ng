@@ -173,3 +173,5 @@ case class Uppercase(tokens: List[Token]) extends Command
 case class Lowercase(tokens: List[Token]) extends Command
 
 case class Message(tokens: List[Token], error: Boolean) extends Command
+
+case class Showthe(tokens: List[Token]) extends Command

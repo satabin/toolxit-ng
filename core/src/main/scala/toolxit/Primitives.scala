@@ -397,7 +397,8 @@ object Primitives {
   val feedback = Set(
     "message",
     "errmessage",
-    "errhelp")
+    "errhelp",
+    "showthe")
 
   val other = Set(
     "ignorespaces",

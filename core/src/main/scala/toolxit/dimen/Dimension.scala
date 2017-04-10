@@ -47,7 +47,7 @@ case class Dimension(sps: Int) extends Ordered[Dimension] {
     sps.toDouble / 65536
 
   override def toString =
-    f"$pts pt"
+    f"$pts%.5f pt"
 
 }
 

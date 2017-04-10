@@ -260,6 +260,8 @@ class TeXMouth(val env: TeXEnvironment)
                     () = env.pushAfterGroup(t)
                     t <- read
                   } yield t
+                case "the" =>
+                  expandThe
                 case _ =>
                   if (env.inReplacement)
                     throwError(new TeXMouthException(f"Undefined control sequence \\$name.", token.pos))
@@ -373,6 +375,12 @@ class TeXMouth(val env: TeXEnvironment)
                     () <- swallow
                     tokens <- generalText(true)
                   } yield Message(tokens, true)
+
+                case Primitive("showthe") =>
+                  for {
+                    () <- swallow
+                    qty <- internalQuatity
+                  } yield Showthe(qty.reverse)
 
                 case t @ ControlSequenceToken(UserDefined(cs), _) =>
                   cs match {

@@ -18,9 +18,15 @@ package mouth
 
 import dimen.Dimension
 
+import font._
 import util._
 
 import java.io.File
+
+import scala.util.{
+  Success,
+  Failure
+}
 
 /** The macros and expansion mechanisms described in chapter 20 of the TeX Book are done here.
  *
@@ -812,5 +818,38 @@ trait TeXMacros {
       case t =>
         throwError(new TeXMouthException("expected \\expandafter command", t.pos))
     }
+
+  def expandThe: Processor[Token] =
+    raw.flatMap {
+      case ControlSequenceToken("the", _) =>
+        for {
+          () <- swallow
+          qty <- internalQuatity
+          () <- pushback(qty)
+          t <- read
+        } yield t
+      case t =>
+        throwError(new TeXMouthException("expected \\the command", t.pos))
+    }
+
+  val internalQuatity: Processor[List[Token]] =
+    for {
+      t <- read
+      qty <- t match {
+        case StartsInternalInteger() => internalInteger.map(n => toTokens(n < 0, math.abs(n)))
+        case StartsInternalDimen()   => internalDimension.map(d => toTokens(d.toString))
+        case StartsInternalGlue()    => internalGlue.map(g => toTokens(g.toString))
+        case StartsInternalMuglue()  => internalMuglue.map(m => toTokens(m.toString))
+        case StartsFont() => font.flatMap {
+          case (fn, mag) => env.fontManager.fontname(fn, mag) match {
+            case Success(n)                           => done(toTokens(n))
+            case Failure(FontNotFoundException(name)) => throwError[Token](new TeXMouthException(f"Can't find font `$name'.", t.pos))
+            case Failure(t)                           => throw t
+          }
+        }
+        case StartsTokenVariable() => tokens.map(_.reverse)
+        case _                     => throwError[Token](new TeXMouthException(f"You can't use `${meaning(t)}' after \\the", t.pos))
+      }
+    } yield qty
 
 }

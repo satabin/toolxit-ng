@@ -37,8 +37,14 @@ class TeXStomach(env: TeXEnvironment, out: PrintWriter, terminal: PrintWriter) e
         case Uppercase(tokens)      => makeUppercase(tokens)
         case Lowercase(tokens)      => makeLowercase(tokens)
         case Message(tokens, false) => terminal.println(tokens.map(_.toString(env)).mkString)
-        case Message(tokens, true)  => terminal.println("! " + tokens.map(_.toString(env)).mkString)
-        case cs @ CS(name)          => assert(false)
+        case Message(tokens, true) =>
+          terminal.print("! ")
+          terminal.println(tokens.map(_.toString(env)).mkString)
+        case Showthe(tokens) =>
+          terminal.print("> ")
+          terminal.print(tokens.map(_.toString(env)).mkString)
+          terminal.println(".")
+        case cs @ CS(name)   => assert(false)
       }
       process
     case None =>
