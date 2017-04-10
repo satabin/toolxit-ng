@@ -150,9 +150,19 @@ class TeXMouth(val env: TeXEnvironment)
   }
 
   /** Returns the next unexpanded token */
-  lazy val raw: Processor[Token] = peek.flatMap {
-    case Some(t) => done(t)
-    case None    => done(EOIToken().atPos(env.lastPosition))
+  lazy val raw: Processor[Token] = lazily {
+    env.popReadAgain() match {
+      case Nil =>
+        peek.flatMap {
+          case Some(t) => done(t)
+          case None    => done(EOIToken().atPos(env.lastPosition))
+        }
+      case toks =>
+        for {
+          () <- pushback(toks)
+          t <- raw
+        } yield t
+    }
   }
 
   def onEOI(msg: String)(it: Processor[Token]): Processor[Token] =
@@ -340,6 +350,18 @@ class TeXMouth(val env: TeXEnvironment)
                 case Primitive("end") =>
                   for (() <- swallow)
                     yield End
+
+                case Primitive("uppercase") =>
+                  for {
+                    () <- swallow
+                    toks <- generalText(false)
+                  } yield Uppercase(toks)
+
+                case Primitive("lowercase") =>
+                  for {
+                    () <- swallow
+                    toks <- generalText(false)
+                  } yield Lowercase(toks)
 
                 case t @ ControlSequenceToken(UserDefined(cs), _) =>
                   cs match {
@@ -644,22 +666,24 @@ class TeXMouth(val env: TeXEnvironment)
       }
     } yield ()
 
-  val generalText: Processor[List[Token]] =
+  def generalText(expand: Boolean): Processor[List[Token]] =
     for {
       () <- filler
       t <- read
-      l <- t match {
-        case CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
-          for (GroupToken(_, tokens, _) <- group(false, true, true, false, false))
-            yield tokens
-        case Implicit(c @ CharacterToken(_, Category.BEGINNING_OF_GROUP)) =>
-          for {
-            () <- swallow
-            () <- pushback(c)
-            GroupToken(_, tokens, _) <- group(false, true, true, false, false)
-          } yield tokens
-        case _ =>
-          throwError[Token](new TeXMouthException("Explicit or implicit beginning of group character expected", t.pos))
+      l <- withExpansion(expand) {
+        t match {
+          case CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
+            for (GroupToken(_, tokens, _) <- group(false, true, true, false, false))
+              yield tokens
+          case Implicit(c @ CharacterToken(_, Category.BEGINNING_OF_GROUP)) =>
+            for {
+              () <- swallow
+              () <- pushback(c)
+              GroupToken(_, tokens, _) <- group(false, true, true, false, false)
+            } yield tokens
+          case _ =>
+            throwError[Token](new TeXMouthException("Explicit or implicit beginning of group character expected", t.pos))
+        }
       }
     } yield l
 

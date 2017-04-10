@@ -338,14 +338,14 @@ trait TeXAssignments {
       case Primitive("hyphenation") =>
         for {
           () <- swallow
-          exceptions <- generalText
+          exceptions <- generalText(true)
         } yield ???
 
       case t @ Primitive("patterns") =>
         if (env.ini)
           for {
             () <- swallow
-            exceptions <- generalText
+            exceptions <- generalText(true)
           } yield ???
         else
           throwError[Token](new TeXMouthException(f"Patterns can be loaded only by INITEX", t.pos))

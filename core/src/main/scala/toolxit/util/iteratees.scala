@@ -125,6 +125,9 @@ abstract class Iteratees[Elt] {
     cont(step)
   }
 
+  def lazily[T](it: => Iteratee[Elt, T]): Iteratee[Elt, T] =
+    noop.andThen(it)
+
   val swallow: Iteratee[Elt, Unit] = {
     def step(s: Stream[Elt]): Try[(Iteratee[Elt, Unit], Stream[Elt])] = s match {
       case Chunk(Seq())             => contM(step)

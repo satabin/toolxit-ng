@@ -168,6 +168,29 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
       None
   }
 
+  private var feedbackList: List[Token] = Nil
+
+  /** This is quite ugly but some commands required the stomach to
+   *  work on unexpanded token sequences, and feed them again to the mouth.
+   *  There is no way an iteratee can do this through the iteratee right now,
+   *  so pushing them back in the environment makes the [[TeXMouth mouth]]
+   *  aware of these tokens to feed again before reading from the [[TeXEyes eyes]].
+   *
+   *  The tokens must be in reverse order.
+   */
+  def pushReadAgain(tokens: List[Token]): Unit = {
+    assert(feedbackList.isEmpty)
+    feedbackList = tokens
+  }
+
+  def popReadAgain(): List[Token] =
+    feedbackList match {
+      case Nil => Nil
+      case l =>
+        feedbackList = Nil
+        l
+    }
+
   /** Indicates whether an `\endinput` control sequence has been encountered.
    *
    *  @group Globals

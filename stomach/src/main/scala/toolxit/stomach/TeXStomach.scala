@@ -18,6 +18,8 @@ package stomach
 
 import util._
 
+import scala.annotation.tailrec
+
 import java.io.PrintWriter
 
 class TeXStomach(env: TeXEnvironment, out: PrintWriter) extends Iteratees[Command] {
@@ -34,6 +36,8 @@ class TeXStomach(env: TeXEnvironment, out: PrintWriter) extends Iteratees[Comman
         case Par               => out.print("\n\n")
         case Relax             => // do nothing
         case Assignment(assgn) => assign(assgn)
+        case Uppercase(tokens) => makeUppercase(tokens)
+        case Lowercase(tokens) => makeLowercase(tokens)
         case cs @ CS(name)     => assert(false)
       }
       process
@@ -110,6 +114,28 @@ class TeXStomach(env: TeXEnvironment, out: PrintWriter) extends Iteratees[Comman
     // TODO
     case Read(inputno, cs, global)                  =>
     // TODO read next line in input number if exists and is open. otherwise read from stdin
+  }
+
+  def makeUppercase(tokens: List[Token]): Unit = {
+    @tailrec
+    def loop(tokens: List[Token], uppercased: List[Token]): Unit = tokens match {
+      case Nil                                     => env.pushReadAgain(uppercased)
+      case CharacterToken(c, cat) :: rest          => loop(rest, CharacterToken(env.uccode(c), cat) :: uppercased)
+      case GroupToken(open, tokens, close) :: rest => assert(false)
+      case t :: rest                               => loop(rest, t :: uppercased)
+    }
+    loop(tokens, Nil)
+  }
+
+  def makeLowercase(tokens: List[Token]): Unit = {
+    @tailrec
+    def loop(tokens: List[Token], uppercased: List[Token]): Unit = tokens match {
+      case Nil                                     => env.pushReadAgain(uppercased)
+      case CharacterToken(c, cat) :: rest          => loop(rest, CharacterToken(env.lccode(c), cat) :: uppercased)
+      case GroupToken(open, tokens, close) :: rest => assert(false)
+      case t :: rest                               => loop(rest, t :: uppercased)
+    }
+    loop(tokens, Nil)
   }
 
 }

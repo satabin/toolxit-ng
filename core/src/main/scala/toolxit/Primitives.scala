@@ -398,7 +398,10 @@ object Primitives {
     "ignorespaces",
     "afterassignment",
     "aftergroup",
-    "par")
+    "par",
+    "end",
+    "uppercase",
+    "lowercase")
 
   val all =
     expandablePrimitives ++
