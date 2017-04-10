@@ -229,6 +229,12 @@ class TeXMouth(val env: TeXEnvironment)
                     }
                     t <- read
                   } yield t
+                case "ignorespaces" =>
+                  for {
+                    () <- swallow
+                    () <- spaces
+                    t <- read
+                  } yield t
                 case _ =>
                   if (env.inReplacement)
                     throwError(new TeXMouthException(f"Undefined control sequence \\$name.", token.pos))

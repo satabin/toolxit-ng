@@ -395,6 +395,7 @@ object Primitives {
     "endgroup")
 
   val other = Set(
+    "ignorespaces",
     "par")
 
   val all =
