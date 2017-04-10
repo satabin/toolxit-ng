@@ -379,11 +379,21 @@ trait TeXAssignments {
     }
 
   def assignment(global: Boolean): Processor[Assignment] =
-    read.flatMap {
-      case StartsSimpleAssignment() => simpleAssignment(global)
-      case StartsGlobalAssignment() => globalAssignment
-      case t                        => throwError(new TeXMouthException("Assignment expected", t.pos))
-    }
+    for {
+      t <- read
+      asgn <- t match {
+        case StartsSimpleAssignment() => simpleAssignment(global)
+        case StartsGlobalAssignment() => globalAssignment
+        case _                        => throwError[Token](new TeXMouthException("Assignment expected", t.pos))
+      }
+      () <- env.afterAssignment match {
+        case Some(t) =>
+          env.afterAssignment = None
+          pushback(t)
+        case None =>
+          noop
+      }
+    } yield asgn
 
   def arithmetic(mode: AssignmentMode, global: Boolean): Processor[Assignment] =
     for {

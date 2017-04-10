@@ -235,6 +235,22 @@ class TeXMouth(val env: TeXEnvironment)
                     () <- spaces
                     t <- read
                   } yield t
+                case "afterassignment" =>
+                  for {
+                    () <- swallow
+                    t <- raw
+                    () <- swallow
+                    () = env.afterAssignment = Some(t)
+                    t <- read
+                  } yield t
+                case "aftergroup" =>
+                  for {
+                    () <- swallow
+                    t <- raw
+                    () <- swallow
+                    () = env.pushAfterGroup(t)
+                    t <- read
+                  } yield t
                 case _ =>
                   if (env.inReplacement)
                     throwError(new TeXMouthException(f"Undefined control sequence \\$name.", token.pos))
@@ -282,9 +298,11 @@ class TeXMouth(val env: TeXEnvironment)
                   env.leaveMode match {
                     case Some(mode) =>
                       // we were build some box, return to current computation
-                      env.leaveGroup
-                      for (() <- swallow)
-                        yield EndBox(mode)
+                      val ag = env.leaveGroup
+                      for {
+                        () <- swallow
+                        () <- if (ag.isEmpty) noop else pushback(ag)
+                      } yield EndBox(mode)
                     case None =>
                       throwError(new TeXMouthException(f"Too many $c's.", tok.pos))
                   }
@@ -414,7 +432,6 @@ class TeXMouth(val env: TeXEnvironment)
           () = env.enterGroup
           // and parses the rest adding the opening token to the accumulator
           g <- loop(More(closeWithCs1, closeWithCs), open, tok :: acc)
-          () = env.leaveGroup
         } yield g
 
       case tok @ CharacterToken(c, Category.END_OF_GROUP) =>
@@ -423,6 +440,8 @@ class TeXMouth(val env: TeXEnvironment)
             for {
               // closing the top-level group, this is an exit condition, consume the token
               () <- swallow
+              ag = if (localScope) env.leaveGroup else Nil
+              () <- if (ag.isEmpty) noop else pushback(ag)
               // and return the built group
             } yield if (reverted) GroupToken(open, acc, tok) else GroupToken(open, acc.reverse, tok)
           case One(true) | More(true, _) =>
@@ -432,6 +451,8 @@ class TeXMouth(val env: TeXEnvironment)
             for {
               // closing a nested group, consume the character
               () <- swallow
+              ag = env.leaveGroup
+              () <- if (ag.isEmpty) noop else pushback(ag)
               // and continue, adding it to the accumulator
               g <- loop(tail, open, tok :: acc)
             } yield g
@@ -443,6 +464,8 @@ class TeXMouth(val env: TeXEnvironment)
             for {
               // closing the top-level group, this is an exit condition, consume the token
               () <- swallow
+              ag = if (localScope) env.leaveGroup else Nil
+              () <- if (ag.isEmpty) noop else pushback(ag)
               // and return the built group
             } yield if (reverted) GroupToken(open, acc, tok) else GroupToken(open, acc.reverse, tok)
           case One(false) | More(false, _) =>
@@ -452,6 +475,8 @@ class TeXMouth(val env: TeXEnvironment)
             for {
               // closing a nested group, consume the character
               () <- swallow
+              ag = env.leaveGroup
+              () <- if (ag.isEmpty) noop else pushback(ag)
               // and continue, adding it to the accumulator
               g <- loop(tail, open, tok :: acc)
             } yield g
@@ -507,7 +532,6 @@ class TeXMouth(val env: TeXEnvironment)
           () = if (localScope) env.enterGroup
           // and loop until this group is correctly closed
           g <- loop(List1(closeWithCs), tok, Nil)
-          () = if (localScope) env.leaveGroup
         } yield g
       case tok =>
         // this is not an opening group, meaning, this is an error

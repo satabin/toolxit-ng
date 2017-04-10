@@ -81,6 +81,9 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
     val glueParameters = Map.empty[String, Glue]
     val muglueParameters = Map.empty[String, Muglue]
 
+    // stack of aftergroup tokens
+    var afterGroups: List[Token] = Nil
+
   }
 
   val fontManager = new FontManager(finders)
@@ -188,11 +191,21 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
     locals = new TeXRegisters(Some(locals))
 
   /** Leaves a group and returns the environment corresponding to the parent group.
+   *  It returns the group to pushback (in reverse order) when leavin this group.
    *
    *  @group Globals
    */
-  def leaveGroup: Unit =
+  def leaveGroup: List[Token] = {
+    val ag = locals.afterGroups
     locals = locals.parent.get
+    ag
+  }
+
+  /** Token to push back after the next assignment. */
+  var afterAssignment: Option[Token] = None
+
+  def pushAfterGroup(token: Token): Unit =
+    locals.afterGroups = token :: locals.afterGroups
 
   // generic lookup function that starts from the register on top in the stack
   // and goes up in the hierarchy until the root is reached
