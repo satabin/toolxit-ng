@@ -79,6 +79,8 @@ trait TeXAssignments {
 
   val scaled = keyword("scaled", true)
 
+  val spread = keyword("spread", false)
+
   val controlsequence: Processor[String] =
     raw.flatMap {
       case ControlSequenceToken(name, _) => swallow.andThen(done(name))
@@ -477,7 +479,7 @@ trait TeXAssignments {
           () <- t match {
             case ExplicitOrImplicit(CharacterToken(_, Category.BEGINNING_OF_GROUP)) =>
               for (() <- swallow)
-                yield env.enterMode(Mode.RestrictedHorizontalMode)
+                yield env.enterMode(Mode.InternalVerticalMode)
             case _ =>
               throwError[Token](new TeXMouthException("Implicit or explicit beginning of group expected", t.pos))
           }
@@ -491,7 +493,7 @@ trait TeXAssignments {
           () <- t match {
             case ExplicitOrImplicit(CharacterToken(_, Category.BEGINNING_OF_GROUP)) =>
               for (() <- swallow)
-                yield env.enterMode(Mode.RestrictedHorizontalMode)
+                yield env.enterMode(Mode.InternalVerticalMode)
             case _ =>
               throwError[Token](new TeXMouthException("Implicit or explicit beginning of group expected", t.pos))
           }
@@ -499,8 +501,38 @@ trait TeXAssignments {
 
     }
 
-  private val boxSpecification: Processor[Specification] =
-    ???
+  private val boxSpecification: Processor[Option[Specification]] =
+    for {
+      () <- spaces
+      t <- read
+      s <- t match {
+        case CharacterToken('t' | 'T', _) =>
+          for {
+            t <- to
+            s <- if (t)
+              for {
+                d <- dimen
+                () <- filler
+              } yield Some(To(d))
+            else
+              done(None)
+          } yield s
+        case CharacterToken('s' | 'S', _) =>
+          for {
+            t <- spread
+            s <- if (t)
+              for {
+                d <- dimen
+                () <- filler
+              } yield Some(Spread(d))
+            else
+              done(None)
+          } yield s
+        case _ =>
+          for (() <- filler)
+            yield None
+      }
+    } yield s
 
   object CountdefToken {
     def unapply(token: Token): Option[Byte] = token match {

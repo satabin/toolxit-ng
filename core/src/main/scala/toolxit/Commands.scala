@@ -142,8 +142,8 @@ case class SpecialDimensionAssignment(name: String, value: Dimension) extends As
 
 case class BoxAssignment(target: Byte, box: Box) extends Assignment
 
-case class StartHBoxAssignment(number: Byte, spec: Specification) extends Assignment
+case class StartHBoxAssignment(number: Byte, spec: Option[Specification]) extends Assignment
 
-case class StartVBoxAssignment(number: Byte, spec: Specification) extends Assignment
+case class StartVBoxAssignment(number: Byte, spec: Option[Specification]) extends Assignment
 
-case class StartVTopAssignment(number: Byte, spec: Specification) extends Assignment
+case class StartVTopAssignment(number: Byte, spec: Option[Specification]) extends Assignment

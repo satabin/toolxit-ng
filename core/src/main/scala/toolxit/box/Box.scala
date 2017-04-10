@@ -35,4 +35,4 @@ case class VTop(contents: List[Command]) extends Box
 sealed trait Specification
 
 case class To(dimen: Dimension) extends Specification
-case class Spread(dimen: Option[Dimension]) extends Specification
+case class Spread(dimen: Dimension) extends Specification

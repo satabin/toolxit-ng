@@ -96,7 +96,15 @@ class TeXStomach(env: TeXEnvironment, out: PrintWriter) extends Iteratees[Comman
       env.integers(name) = value
     case SpecialDimensionAssignment(name, value) =>
       env.dimensions(name) = value
-    case Read(inputno, cs, global) =>
+    case BoxAssignment(number, box)                 =>
+    // TODO
+    case StartHBoxAssignment(number, specification) =>
+    // TODO
+    case StartVBoxAssignment(number, specification) =>
+    // TODO
+    case StartVTopAssignment(number, specification) =>
+    // TODO
+    case Read(inputno, cs, global)                  =>
     // TODO read next line in input number if exists and is open. otherwise read from stdin
   }
 
