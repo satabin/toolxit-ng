@@ -76,6 +76,8 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
     // glues and muglues are the triple (dimension, stretch, shrink)
     val glues = Map.empty[Byte, Glue]
     val muglues = Map.empty[Byte, Muglue]
+    // token lists
+    val tokens = Map.empty[Byte, List[Token]]
 
     var currentFont: Option[(String, Option[Either[Dimension, Double]])] = None
     val textfonts = Map.empty[Byte, (String, Option[Either[Dimension, Double]])]
@@ -86,6 +88,7 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
     val dimensionParameters = Map.empty[String, Dimension]
     val glueParameters = Map.empty[String, Glue]
     val muglueParameters = Map.empty[String, Muglue]
+    val tokenParameters = Map.empty[String, List[Token]]
 
     // stack of aftergroup tokens
     var afterGroups: List[Token] = Nil
@@ -609,6 +612,58 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
       val params = if (global) root.muglueParameters else locals.muglueParameters
       params(name) = value
     }
+  }
+
+  /** Exposes tokens register management functions.
+   *
+   *  @group Registers
+   */
+  object toks {
+
+    /** Finds and returns the token register value identified by its register number
+     *  in the current environment.
+     *  The default value of a tokens register is `Nil`.
+     */
+    def apply(number: Byte): List[Token] =
+      lookupRegister(number, (_.tokens), locals).getOrElse(Nil)
+
+    /** Sets the value of the tokens register in the current environment.
+     *  This value will be reset to the previous value when leaving the current group.
+     */
+    def update(number: Byte, value: List[Token]) =
+      locals.tokens(number) = value
+
+    def update(number: Byte, global: Boolean, value: List[Token]): Unit = {
+      val toks = if (global) root.tokens else locals.tokens
+      toks(number) = value
+    }
+
+  }
+
+  /** Exposes tokens register management functions.
+   *
+   *  @group Registers
+   */
+  object tokenParameter {
+
+    /** Finds and returns the token parameter value identified by its register number
+     *  in the current environment.
+     *  The default value of a tokens register is `Nil`.
+     */
+    def apply(name: String): List[Token] =
+      lookupRegister(name, (_.tokenParameters), locals).getOrElse(Nil)
+
+    /** Sets the value of the token parameter in the current environment.
+     *  This value will be reset to the previous value when leaving the current group.
+     */
+    def update(name: String, value: List[Token]) =
+      locals.tokenParameters(name) = value
+
+    def update(name: String, global: Boolean, value: List[Token]): Unit = {
+      val toks = if (global) root.tokenParameters else locals.tokenParameters
+      toks(name) = value
+    }
+
   }
 
   /** Exposes text font register management functions.

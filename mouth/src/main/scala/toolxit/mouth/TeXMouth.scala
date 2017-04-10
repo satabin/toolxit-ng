@@ -56,6 +56,7 @@ class TeXMouth(val env: TeXEnvironment)
     with TeXDimensions
     with TeXGlues
     with TeXFonts
+    with TeXTokens
     with TeXAssignments {
 
   def accept(token: Token): Processor[Unit] =
@@ -360,6 +361,18 @@ class TeXMouth(val env: TeXEnvironment)
                     () <- swallow
                     toks <- generalText(false)
                   } yield Lowercase(toks)
+
+                case Primitive("message") =>
+                  for {
+                    () <- swallow
+                    tokens <- generalText(true)
+                  } yield Message(tokens, false)
+
+                case Primitive("errmessage") =>
+                  for {
+                    () <- swallow
+                    tokens <- generalText(true)
+                  } yield Message(tokens, true)
 
                 case t @ ControlSequenceToken(UserDefined(cs), _) =>
                   cs match {

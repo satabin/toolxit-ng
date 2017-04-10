@@ -76,7 +76,7 @@ class Xonsole {
 
       val mouth = new TeXMouth(environment)
 
-      val stomach = new TeXStomach(environment, out)
+      val stomach = new TeXStomach(environment, out, terminal.writer)
 
       val it =
         Enumeratees.join(

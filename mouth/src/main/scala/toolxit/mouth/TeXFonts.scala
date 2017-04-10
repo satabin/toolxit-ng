@@ -71,5 +71,14 @@ trait TeXFonts {
     }
   }
 
+  object StartsFont {
+    def unapply(token: Token): Boolean = token match {
+      case FontdefToken(_, _)      => true
+      case Primitives.Font("font") => true
+      case FontRange(_)            => true
+      case _                       => false
+    }
+  }
+
 }
 

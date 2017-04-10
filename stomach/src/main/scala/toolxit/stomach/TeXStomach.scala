@@ -22,7 +22,7 @@ import scala.annotation.tailrec
 
 import java.io.PrintWriter
 
-class TeXStomach(env: TeXEnvironment, out: PrintWriter) extends Iteratees[Command] {
+class TeXStomach(env: TeXEnvironment, out: PrintWriter, terminal: PrintWriter) extends Iteratees[Command] {
 
   lazy val process: Processor[Unit] = headOption.flatMap {
     case Some(End) =>
@@ -30,13 +30,15 @@ class TeXStomach(env: TeXEnvironment, out: PrintWriter) extends Iteratees[Comman
     case Some(cs @ CS(name)) => throwError(new TeXStomachException(f"Undefined control sequence \\$name", cs.pos))
     case Some(v) =>
       v match {
-        case Typeset(c)        => out.print(c)
-        case Par               => out.print("\n\n")
-        case Relax             => // do nothing
-        case Assignment(assgn) => assign(assgn)
-        case Uppercase(tokens) => makeUppercase(tokens)
-        case Lowercase(tokens) => makeLowercase(tokens)
-        case cs @ CS(name)     => assert(false)
+        case Typeset(c)             => out.print(c)
+        case Par                    => out.print("\n\n")
+        case Relax                  => // do nothing
+        case Assignment(assgn)      => assign(assgn)
+        case Uppercase(tokens)      => makeUppercase(tokens)
+        case Lowercase(tokens)      => makeLowercase(tokens)
+        case Message(tokens, false) => terminal.println(tokens.map(_.toString(env)).mkString)
+        case Message(tokens, true)  => terminal.println("! " + tokens.map(_.toString(env)).mkString)
+        case cs @ CS(name)          => assert(false)
       }
       process
     case None =>
@@ -48,8 +50,14 @@ class TeXStomach(env: TeXEnvironment, out: PrintWriter) extends Iteratees[Comman
       env.count(cnt, mode, global) = v
     case DimensionAssignment(dim, v, mode, global) =>
       env.dimen(dim, mode, global) = v
+    case TokensAssignment(toks, v, global) =>
+      env.toks(toks, global) = v
     case IntegerParameterAssignment(name, v, mode, global) =>
       env.integerParameter(name, mode, global) = v
+    case DimensionParameterAssignment(name, v, mode, global) =>
+      env.dimensionParameter(name, mode, global) = v
+    case TokensParameterAssignment(name, v, global) =>
+      env.tokenParameter(name, global) = v
     case CategoryAssignment(char, cat, global) =>
       env.category(char, global) = cat
     case LccodeAssignment(char, lc, global) =>
@@ -62,6 +70,8 @@ class TeXStomach(env: TeXEnvironment, out: PrintWriter) extends Iteratees[Comman
       env.css(name, global) = TeXCounter(name, number)
     case DimensionDefinition(name, number, global) =>
       env.css(name, global) = TeXDimension(name, number)
+    case TokensDefinition(name, number, global) =>
+      env.css(name, global) = TeXTokenList(name, number)
     case LetAssignment(name, alias, global) => alias match {
       case cs @ ControlSequenceToken(alias, _) => env.css(alias) match {
         case Some(cs) =>

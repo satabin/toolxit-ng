@@ -23,6 +23,8 @@ trait TeXGlues {
 
   lazy val internalGlue: Processor[Glue] = ???
 
+  lazy val internalMuglue: Processor[Muglue] = ???
+
   val plus = keyword("plus", true)
   val minus = keyword("minus", true)
 
@@ -58,6 +60,11 @@ trait TeXGlues {
   // extractors
 
   object StartsInternalGlue {
+    def unapply(token: Token): Boolean =
+      false
+  }
+
+  object StartsInternalMuglue {
     def unapply(token: Token): Boolean =
       false
   }

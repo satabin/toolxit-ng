@@ -394,6 +394,11 @@ object Primitives {
     "begingroup",
     "endgroup")
 
+  val feedback = Set(
+    "message",
+    "errmessage",
+    "errhelp")
+
   val other = Set(
     "ignorespaces",
     "afterassignment",
@@ -420,6 +425,7 @@ object Primitives {
       interactionMode ++
       box ++
       group ++
+      feedback ++
       other
 
 }

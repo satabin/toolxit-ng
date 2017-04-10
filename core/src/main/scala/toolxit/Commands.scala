@@ -86,6 +86,15 @@ case class CounterAssignment(id: Byte, value: Int, mode: AssignmentMode, global:
 /** A dimension assignment command (in sp). */
 case class DimensionAssignment(id: Byte, value: Int, mode: AssignmentMode, global: Boolean) extends Assignment
 
+/** A dimension parameter assignment command (in sp). */
+case class DimensionParameterAssignment(name: String, value: Int, mode: AssignmentMode, global: Boolean) extends Assignment
+
+/** A token list assignment command. */
+case class TokensAssignment(id: Byte, value: List[Token], global: Boolean) extends Assignment
+
+/** A token list parameter assignment command. */
+case class TokensParameterAssignment(name: String, value: List[Token], global: Boolean) extends Assignment
+
 /** A character category assignment */
 case class CategoryAssignment(c: Char, cat: Category, global: Boolean) extends Assignment
 
@@ -103,6 +112,9 @@ case class CounterDefinition(name: String, number: Byte, global: Boolean) extend
 
 /** A dimension definition. */
 case class DimensionDefinition(name: String, number: Byte, global: Boolean) extends Assignment
+
+/** A token list definition. */
+case class TokensDefinition(name: String, number: Byte, global: Boolean) extends Assignment
 
 /** A `\let` assignment. */
 case class LetAssignment(name: String, meaning: Token, global: Boolean) extends Assignment
@@ -159,3 +171,5 @@ case class EndBox(mode: Mode) extends Command
 case class Uppercase(tokens: List[Token]) extends Command
 
 case class Lowercase(tokens: List[Token]) extends Command
+
+case class Message(tokens: List[Token], error: Boolean) extends Command

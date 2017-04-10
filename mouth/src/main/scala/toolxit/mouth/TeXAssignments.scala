@@ -33,13 +33,23 @@ trait TeXAssignments {
     def unapply(token: Token): Boolean = token match {
       case Primitives.IntegerParameter(_) =>
         true
+      case Primitives.DimensionParameter(_) =>
+        true
+      case Primitives.GlueParameter(_) =>
+        true
+      case Primitives.MuglueParameter(_) =>
+        true
+      case Primitives.TokenParameter(_) =>
+        true
       case CountdefToken(_) =>
         true
       case DimendefToken(_) =>
         true
       case FontdefToken(_, _) =>
         true
-      case Primitive("count" | "dimen" | "advance" | "multiply" | "divide" | "chardef" | "countdef" | "dimendef" | "let" | "futurelet" | "read" | "font" | "nullfont" | "setbox") =>
+      case ToksdefToken(_) =>
+        true
+      case Primitive("count" | "dimen" | "advance" | "multiply" | "divide" | "chardef" | "countdef" | "dimendef" | "let" | "futurelet" | "read" | "font" | "nullfont" | "setbox" | "toksdef" | "toks") =>
         true
       case Primitives.Font("textfont" | "scriptfont" | "scriptscriptfont") =>
         true
@@ -138,6 +148,15 @@ trait TeXAssignments {
           i <- bit8(tok.pos)
         } yield DimensionDefinition(cs, i, global)
 
+      // toksdef
+      case tok @ Primitive("toksdef") =>
+        for {
+          () <- swallow
+          cs <- controlsequence
+          () <- equals
+          i <- bit8(tok.pos)
+        } yield TokensDefinition(cs, i, global)
+
       // let and futurelet
       case tok @ Primitive("let") =>
         for {
@@ -192,12 +211,56 @@ trait TeXAssignments {
           d <- dimen
         } yield DimensionAssignment(dim, d.sps, AssignmentMode.Set, global)
 
+      case Primitives.DimensionParameter(name) =>
+        for {
+          () <- swallow
+          () <- equals
+          d <- dimen
+        } yield DimensionParameterAssignment(name, d.sps, AssignmentMode.Set, global)
+
       case DimendefToken(dim) =>
         for {
           () <- swallow
           () <- equals
           d <- dimen
         } yield DimensionAssignment(dim, d.sps, AssignmentMode.Set, global)
+
+      case Primitives.TokenParameter(name) =>
+        for {
+          () <- swallow
+          () <- equals
+          () <- filler
+          t <- read
+          toks <- t match {
+            case StartsTokenVariable() => tokenVariable
+            case _                     => generalText(true)
+          }
+        } yield TokensParameterAssignment(name, toks, global)
+
+      case ToksdefToken(n) =>
+        for {
+          () <- swallow
+          () <- equals
+          () <- filler
+          t <- read
+          toks <- t match {
+            case StartsTokenVariable() => tokenVariable
+            case _                     => generalText(true)
+          }
+        } yield TokensAssignment(n, toks, global)
+
+      case t @ Primitive("toks") =>
+        for {
+          () <- swallow
+          n <- bit8(t.pos)
+          () <- equals
+          () <- filler
+          t <- read
+          toks <- t match {
+            case StartsTokenVariable() => tokenVariable
+            case _                     => generalText(true)
+          }
+        } yield TokensAssignment(n, toks, global)
 
       case FontdefToken(fname, mag) =>
         for {
@@ -588,6 +651,17 @@ trait TeXAssignments {
         env.css(name) match {
           case Some(TeXFont(_, fn, mag)) => Some(fn -> mag)
           case _                         => None
+        }
+      case _ => None
+    }
+  }
+
+  object ToksdefToken {
+    def unapply(token: Token): Option[Byte] = token match {
+      case ControlSequenceToken(name, _) =>
+        env.css(name) match {
+          case Some(TeXTokenList(_, number)) => Some(number)
+          case _                             => None
         }
       case _ => None
     }

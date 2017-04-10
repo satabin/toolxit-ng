@@ -52,7 +52,7 @@ case class CharacterToken(value: Char, category: Category) extends Token {
  *  @author Lucas Satabin
  */
 case class ControlSequenceToken(name: String, active: Boolean = false) extends Token {
-  def toString(env: TeXEnvironment) = f"${env.escapechar}$name"
+  def toString(env: TeXEnvironment) = f"${env.escapechar}$name "
 }
 
 /** A parameter token may only occur in the parameter or replacement text
