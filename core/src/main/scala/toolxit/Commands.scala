@@ -147,3 +147,5 @@ case class StartHBoxAssignment(number: Byte, spec: Option[Specification]) extend
 case class StartVBoxAssignment(number: Byte, spec: Option[Specification]) extends Assignment
 
 case class StartVTopAssignment(number: Byte, spec: Option[Specification]) extends Assignment
+
+case class EndBox(mode: Mode) extends Command

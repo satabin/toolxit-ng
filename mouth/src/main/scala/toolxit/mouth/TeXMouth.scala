@@ -273,7 +273,15 @@ class TeXMouth(val env: TeXEnvironment)
                 case tok @ EOIToken() =>
                   throwError(new EOIException(tok.pos))
                 case tok @ CharacterToken(c, Category.END_OF_GROUP) =>
-                  throwError(new TeXMouthException(f"Too many $c's.", tok.pos))
+                  env.leaveMode match {
+                    case Some(mode) =>
+                      // we were build some box, return to current computation
+                      env.leaveGroup
+                      for (() <- swallow)
+                        yield EndBox(mode)
+                    case None =>
+                      throwError(new TeXMouthException(f"Too many $c's.", tok.pos))
+                  }
 
                 case CharacterToken(_, Category.BEGINNING_OF_GROUP) =>
                   env.enterGroup
