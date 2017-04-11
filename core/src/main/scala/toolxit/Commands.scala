@@ -98,6 +98,12 @@ case class TokensParameterAssignment(name: String, value: List[Token], global: B
 /** A character category assignment */
 case class CategoryAssignment(c: Char, cat: Category, global: Boolean) extends Assignment
 
+/** A character math code assignment */
+case class MathCodeAssignment(c: Char, code: Int, global: Boolean) extends Assignment
+
+/** A delimiter code assignment */
+case class DelimiterCodeAssignment(c: Char, code: Int, global: Boolean) extends Assignment
+
 /** A caracter uppercase code assignment. */
 case class UccodeAssignment(c: Char, uc: Char, global: Boolean) extends Assignment
 
@@ -106,6 +112,9 @@ case class LccodeAssignment(c: Char, lc: Char, global: Boolean) extends Assignme
 
 /** A character definition. */
 case class CharacterDefinition(name: String, c: CharacterToken, global: Boolean) extends Assignment
+
+/** A math character definition. */
+case class MathCharacterDefinition(name: String, code: Int, global: Boolean) extends Assignment
 
 /** A counter definition. */
 case class CounterDefinition(name: String, number: Byte, global: Boolean) extends Assignment

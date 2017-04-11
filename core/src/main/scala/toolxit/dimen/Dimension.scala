@@ -63,9 +63,9 @@ object Dimension {
   // cc -> cicero (1 cc = 12 dd)
   // sp -> scaled point (65536 sp = 1 pt)
 
-  def ofScaledPoint(sp: Double): Dimension = Dimension(math.round(sp).toInt)
+  def ofScaledPoint(sp: Double): Dimension = Dimension(scala.math.round(sp).toInt)
 
-  def ofPoint(point: Double): Dimension = Dimension(math.round(65536d * point).toInt)
+  def ofPoint(point: Double): Dimension = Dimension(scala.math.round(65536d * point).toInt)
 
   def ofPica(pica: Double): Dimension = ofPoint(12d * pica)
 

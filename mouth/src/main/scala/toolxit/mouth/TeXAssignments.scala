@@ -49,7 +49,7 @@ trait TeXAssignments {
         true
       case ToksdefToken(_) =>
         true
-      case Primitive("count" | "dimen" | "advance" | "multiply" | "divide" | "chardef" | "countdef" | "dimendef" | "let" | "futurelet" | "read" | "font" | "nullfont" | "setbox" | "toksdef" | "toks") =>
+      case Primitive("count" | "dimen" | "advance" | "multiply" | "divide" | "chardef" | "mathchardef" | "countdef" | "dimendef" | "let" | "futurelet" | "read" | "font" | "nullfont" | "setbox" | "toksdef" | "toks") =>
         true
       case Primitives.Font("textfont" | "scriptfont" | "scriptscriptfont") =>
         true
@@ -129,6 +129,15 @@ trait TeXAssignments {
           () <- equals
           c <- char(tok.pos)
         } yield CharacterDefinition(cs, CharacterToken(c, env.category(c)), global)
+
+      // mathchardef
+      case tok @ Primitive("mathchardef") =>
+        for {
+          () <- swallow
+          cs <- controlsequence
+          () <- equals
+          code <- bit15(tok.pos)
+        } yield MathCharacterDefinition(cs, code, global)
 
       // countdef
       case tok @ Primitive("countdef") =>
@@ -333,6 +342,22 @@ trait TeXAssignments {
           () <- equals
           cat <- catNumber(tok.pos)
         } yield CategoryAssignment(c, Category.withValue(cat), global)
+
+      case tok @ Primitives.Codename("mathcode") =>
+        for {
+          () <- swallow
+          c <- char(tok.pos)
+          () <- equals
+          code <- bit15(tok.pos)
+        } yield MathCodeAssignment(c, code, global)
+
+      case tok @ Primitives.Codename("delcode") =>
+        for {
+          () <- swallow
+          c <- char(tok.pos)
+          () <- equals
+          code <- bit24(tok.pos)
+        } yield DelimiterCodeAssignment(c, code, global)
 
       case tok @ Primitives.Codename("uccode") =>
         for {

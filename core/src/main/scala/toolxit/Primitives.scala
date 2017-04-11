@@ -400,6 +400,9 @@ object Primitives {
     "errhelp",
     "showthe")
 
+  val math = Set(
+    "mathchar")
+
   val other = Set(
     "ignorespaces",
     "afterassignment",
@@ -427,6 +430,7 @@ object Primitives {
       box ++
       group ++
       feedback ++
+      math ++
       other
 
 }

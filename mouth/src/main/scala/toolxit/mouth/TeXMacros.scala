@@ -664,7 +664,7 @@ trait TeXMacros {
         for {
           () <- swallow
           n <- number
-          tokens = toTokens(n < 0, math.abs(n))
+          tokens = toTokens(n < 0, scala.math.abs(n))
           () <- pushback(tokens)
           t <- read
         } yield t
@@ -836,7 +836,7 @@ trait TeXMacros {
     for {
       t <- read
       qty <- t match {
-        case StartsInternalInteger() => internalInteger.map(n => toTokens(n < 0, math.abs(n)))
+        case StartsInternalInteger() => internalInteger.map(n => toTokens(n < 0, scala.math.abs(n)))
         case StartsInternalDimen()   => internalDimension.map(d => toTokens(d.toString))
         case StartsInternalGlue()    => internalGlue.map(g => toTokens(g.toString))
         case StartsInternalMuglue()  => internalMuglue.map(m => toTokens(m.toString))

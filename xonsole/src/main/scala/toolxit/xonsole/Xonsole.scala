@@ -163,3 +163,10 @@ class Xonsole {
   }
 
 }
+
+object Xonsole extends App {
+
+  val xonsole = new Xonsole
+  xonsole.open()
+
+}

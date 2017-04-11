@@ -34,9 +34,9 @@ object TfmCodec {
 
   private val fixWord: Codec[Double] =
     int32.xmap({
-      i => i * math.pow(2, -20)
+      i => i * scala.math.pow(2, -20)
     }, {
-      d => math.round(d * math.pow(2, 20)).toInt
+      d => scala.math.round(d * scala.math.pow(2, 20)).toInt
     })
 
   private val uint6 = uint(6)

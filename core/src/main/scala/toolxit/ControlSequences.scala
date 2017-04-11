@@ -18,73 +18,27 @@ package toolxit
 import dimen._
 import font._
 
-import enumeratum._
-
-/** TeX basically has very few types:
- *   - signed integer,
- *   - character,
- *   - math character,
- *   - dimension,
- *   - glue,
- *   - muglue,
- *   - macro (defined by the user),
- *   - alias (defined by `\let` or `\futurelet`),
- *   - token lists,
- *   - font.
- *
- *  @author Lucas Satabin
- *
- */
-sealed trait TeXType extends EnumEntry
-object TeXType extends Enum[TeXType] {
-  val values = findValues
-
-  object TeXCounter extends TeXType
-  object TeXChar extends TeXType
-  object TeXMathChar extends TeXType
-  object TeXDimension extends TeXType
-  object TeXGlue extends TeXType
-  object TeXMuglue extends TeXType
-  object TeXMacro extends TeXType
-  object TeXAlias extends TeXType
-  object TeXTokenList extends TeXType
-  object TeXFont extends TeXType
-}
-
 sealed trait ControlSequence {
   val name: String
-  val tpe: TeXType
 }
 
 final case class TeXChar(name: String,
-    char: CharacterToken) extends ControlSequence {
-  val tpe = TeXType.TeXChar
-}
+  char: CharacterToken) extends ControlSequence
 
 final case class TeXCounter(name: String,
-    number: Byte) extends ControlSequence {
-  val tpe = TeXType.TeXCounter
-}
+  number: Byte) extends ControlSequence
 
 final case class TeXMathChar(name: String,
-    number: Byte) extends ControlSequence {
-  val tpe = TeXType.TeXMathChar
-}
+  code: Int) extends ControlSequence
 
 final case class TeXDimension(name: String,
-    number: Byte) extends ControlSequence {
-  val tpe = TeXType.TeXDimension
-}
+  number: Byte) extends ControlSequence
 
 final case class TeXGlue(name: String,
-    number: Byte) extends ControlSequence {
-  val tpe = TeXType.TeXGlue
-}
+  number: Byte) extends ControlSequence
 
 final case class TeXMuglue(name: String,
-    number: Byte) extends ControlSequence {
-  val tpe = TeXType.TeXMuglue
-}
+  number: Byte) extends ControlSequence
 
 /** This control sequence represents a macro with a parameter sequence and a replacement text.
  *  It is expected for the replacement text to be a list of the body tokens in reverse order.
@@ -93,30 +47,20 @@ final case class TeXMuglue(name: String,
  *  its order, so that the last elements of the sequence will be the on top of the stack
  */
 final case class TeXMacro(name: String,
-    parameters: List[Token],
-    replacement: List[Token],
-    long: Boolean,
-    outer: Boolean) extends ControlSequence {
-  val tpe = TeXType.TeXMacro
-}
+  parameters: List[Token],
+  replacement: List[Token],
+  long: Boolean,
+  outer: Boolean) extends ControlSequence
 
 final case class TeXCsAlias(name: String,
-    tokens: Token) extends ControlSequence {
-  val tpe = TeXType.TeXAlias
-}
+  tokens: Token) extends ControlSequence
 
 final case class TeXCharAlias(name: String,
-    replacement: CharacterToken) extends ControlSequence {
-  val tpe = TeXType.TeXAlias
-}
+  replacement: CharacterToken) extends ControlSequence
 
 final case class TeXTokenList(name: String,
-    number: Byte) extends ControlSequence {
-  val tpe = TeXType.TeXTokenList
-}
+  number: Byte) extends ControlSequence
 
 final case class TeXFont(name: String,
-    fname: String,
-    magnification: Option[Either[Dimension, Double]]) extends ControlSequence {
-  val tpe = TeXType.TeXFont
-}
+  fname: String,
+  magnification: Option[Either[Dimension, Double]]) extends ControlSequence

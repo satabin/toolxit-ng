@@ -44,7 +44,7 @@ class TeXStomach(env: TeXEnvironment, out: PrintWriter, terminal: PrintWriter) e
           terminal.print("> ")
           terminal.print(tokens.map(_.toString(env)).mkString)
           terminal.println(".")
-        case cs @ CS(name)   => assert(false)
+        case cs @ CS(name) => assert(false)
       }
       process
     case None =>
@@ -66,12 +66,18 @@ class TeXStomach(env: TeXEnvironment, out: PrintWriter, terminal: PrintWriter) e
       env.tokenParameter(name, global) = v
     case CategoryAssignment(char, cat, global) =>
       env.category(char, global) = cat
+    case MathCodeAssignment(char, code, global) =>
+      env.mathcode(char, global) = code
+    case DelimiterCodeAssignment(char, code, global) =>
+      env.delcode(char, global) = code
     case LccodeAssignment(char, lc, global) =>
       env.lccode(char, global) = lc
     case UccodeAssignment(char, uc, global) =>
       env.uccode(char, global) = uc
     case CharacterDefinition(name, char, global) =>
       env.css(name, global) = TeXChar(name, char)
+    case MathCharacterDefinition(name, code, global) =>
+      env.css(name, global) = TeXMathChar(name, code)
     case CounterDefinition(name, number, global) =>
       env.css(name, global) = TeXCounter(name, number)
     case DimensionDefinition(name, number, global) =>

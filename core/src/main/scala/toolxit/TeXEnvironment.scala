@@ -55,6 +55,12 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
     // the map from character to category code
     val categories = Map.empty[Char, Category]
 
+    // the map from character to math code
+    val mathcodes = Map.empty[Char, Int]
+
+    // the map from character to delimiter code
+    val delcodes = Map.empty[Char, Int]
+
     // the map from cahracter to its uppercase character
     val uccodes = Map.empty[Char, Char]
 
@@ -176,8 +182,8 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
   /** This is quite ugly but some commands required the stomach to
    *  work on unexpanded token sequences, and feed them again to the mouth.
    *  There is no way an iteratee can do this through the iteratee right now,
-   *  so pushing them back in the environment makes the [[TeXMouth mouth]]
-   *  aware of these tokens to feed again before reading from the [[TeXEyes eyes]].
+   *  so pushing them back in the environment makes the [[mouth.TeXMouth mouth]]
+   *  aware of these tokens to feed again before reading from the [[eyes.TeXEyes eyes]].
    *
    *  The tokens must be in reverse order.
    */
@@ -286,6 +292,67 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
     def update(char: Char, global: Boolean, category: Category): Unit = {
       val cats = if (global) root.categories else locals.categories
       cats(char) = category
+    }
+
+  }
+
+  /** Exposes math code management functions.
+   *
+   *  @group Registers
+   */
+  object mathcode {
+
+    /** Returns the math code of the given character in the current environment. */
+    def apply(char: Char): Int =
+      lookupRegister(char, (_.mathcodes), locals) match {
+        case Some(c) =>
+          c
+        case None =>
+          if (char.isLetter)
+            0x7100 + char
+          else if (char.isDigit)
+            0x7000 + char
+          else
+            char
+      }
+
+    /** Sets the math code of the given character. This setting is scoped
+     *  to the current group only, and will be discarded when leaving the group.
+     */
+    def update(char: Char, code: Int): Unit =
+      locals.mathcodes(char) = code
+
+    def update(char: Char, global: Boolean, code: Int): Unit = {
+      val codes = if (global) root.mathcodes else locals.mathcodes
+      codes(char) = code
+    }
+
+  }
+
+  /** Exposes delimiter code management functions.
+   *
+   *  @group Registers
+   */
+  object delcode {
+
+    /** Returns the delimiter code of the given character in the current environment. */
+    def apply(char: Char): Int =
+      lookupRegister(char, (_.delcodes), locals) match {
+        case Some(c) =>
+          c
+        case None =>
+          -1
+      }
+
+    /** Sets the delimiter code of the given character. This setting is scoped
+     *  to the current group only, and will be discarded when leaving the group.
+     */
+    def update(char: Char, code: Int): Unit =
+      locals.delcodes(char) = code
+
+    def update(char: Char, global: Boolean, code: Int): Unit = {
+      val codes = if (global) root.delcodes else locals.delcodes
+      codes(char) = code
     }
 
   }

@@ -121,8 +121,29 @@ trait TeXNumbers {
         throwError(new TeXMouthException(f"8-bit number expected but got $i", pos))
     }
 
+  def bit15(pos: Position): Processor[Int] =
+    number.flatMap { i =>
+      if (i >= 0 && i <= 32767)
+        done(i)
+      else
+        throwError(new TeXMouthException(f"15-bit number expected but got $i", pos))
+    }
+
+  def bit24(pos: Position): Processor[Int] =
+    number.flatMap { i =>
+      if (i < 0x1000000)
+        done(i)
+      else
+        throwError(new TeXMouthException(f"24-bit number expected but got $i", pos))
+    }
+
   def char(pos: Position): Processor[Char] =
-    number.map(_.toChar)
+    number.flatMap { i =>
+      if (i >= 0 && i <= 65535)
+        done(i.toChar)
+      else
+        throwError(new TeXMouthException(f"Character expected but got $i", pos))
+    }
 
   def catNumber(pos: Position): Processor[Byte] =
     number.flatMap { i =>
@@ -159,7 +180,10 @@ trait TeXNumbers {
           } yield env.category(i.toChar).value
 
         case tok @ Primitives.Codename("mathcode") =>
-          ???
+          for {
+            () <- swallow
+            i <- char(tok.pos)
+          } yield env.mathcode(i.toChar)
 
         case tok @ Primitives.Codename("lccode") =>
           for {
@@ -176,11 +200,11 @@ trait TeXNumbers {
         case tok @ Primitives.Codename("sfcode") =>
           ???
 
-        case tok @ Primitives.Codename("sfcode") =>
-          ???
-
         case tok @ Primitives.Codename("delcode") =>
-          ???
+          for {
+            () <- swallow
+            c <- char(tok.pos)
+          } yield env.delcode(c)
 
         // internal integers with parameters
         case tok @ Primitives.InternalInteger("count") =>
@@ -192,14 +216,14 @@ trait TeXNumbers {
         case tok @ Primitives.InternalInteger("hyphenchar") =>
           for {
             () <- swallow
-            f <- font
-          } yield ???
+            (fn, mag) <- font
+          } yield env.fontManager.hyphenchar(fn, mag).map(_.toInt).getOrElse(0)
 
         case tok @ Primitives.InternalInteger("skewchar") =>
           for {
             () <- swallow
-            f <- font
-          } yield ???
+            (fn, mag) <- font
+          } yield env.fontManager.skewchar(fn, mag).map(_.toInt).getOrElse(0)
 
         case Primitives.InternalInteger(name) =>
           for (() <- swallow)
