@@ -67,6 +67,9 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
     // the map from cahracter to its lowercase character
     val lccodes = Map.empty[Char, Char]
 
+    // the map from cahracter to its space factor code
+    val sfcodes = Map.empty[Char, Int]
+
     // the map from cs name to its internal representation
     val controlSequences = Map.empty[String, ControlSequence]
 
@@ -417,6 +420,37 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
     def update(char: Char, global: Boolean, lc: Char): Unit = {
       val lccodes = if (global) root.lccodes else locals.lccodes
       lccodes(char) = lc
+    }
+
+  }
+
+  /** Exposes sfcode management functions.
+   *
+   *  @group Registers
+   */
+  object sfcode {
+
+    /** Returns the space factor code of the given character in the current environment. */
+    def apply(char: Char): Int =
+      lookupRegister(char, (_.sfcodes), locals) match {
+        case Some(c) =>
+          c
+        case None =>
+          if (Character.isUpperCase(char))
+            999
+          else
+            1000
+      }
+
+    /** Sets the space factor of the given character. This setting is scoped
+     *  to the current group only, and will be discarded when leaving the group.
+     */
+    def update(char: Char, sf: Int): Unit =
+      locals.sfcodes(char) = sf
+
+    def update(char: Char, global: Boolean, sf: Int): Unit = {
+      val sfcodes = if (global) root.sfcodes else locals.sfcodes
+      sfcodes(char) = sf
     }
 
   }

@@ -375,6 +375,14 @@ trait TeXAssignments {
           lc <- char(tok.pos)
         } yield LccodeAssignment(c, lc, global)
 
+      case tok @ Primitives.Codename("sfcode") =>
+        for {
+          () <- swallow
+          c <- char(tok.pos)
+          () <- equals
+          sf <- bit15(tok.pos)
+        } yield SfcodeAssignment(c, sf, global)
+
       // read
       case tok @ ControlSequenceToken("read", _) =>
         for {

@@ -72,6 +72,8 @@ class TeXStomach(env: TeXEnvironment, out: PrintWriter, terminal: PrintWriter) e
       env.delcode(char, global) = code
     case LccodeAssignment(char, lc, global) =>
       env.lccode(char, global) = lc
+    case SfcodeAssignment(char, sf, global) =>
+      env.sfcode(char, global) = sf
     case UccodeAssignment(char, uc, global) =>
       env.uccode(char, global) = uc
     case CharacterDefinition(name, char, global) =>

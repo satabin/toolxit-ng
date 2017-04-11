@@ -198,7 +198,10 @@ trait TeXNumbers {
           } yield env.uccode(c).toInt
 
         case tok @ Primitives.Codename("sfcode") =>
-          ???
+          for {
+            () <- swallow
+            c <- char(tok.pos)
+          } yield env.sfcode(c)
 
         case tok @ Primitives.Codename("delcode") =>
           for {
