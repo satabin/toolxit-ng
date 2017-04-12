@@ -49,7 +49,9 @@ trait TeXAssignments {
         true
       case ToksdefToken(_) =>
         true
-      case Primitive("count" | "dimen" | "advance" | "multiply" | "divide" | "chardef" | "mathchardef" | "countdef" | "dimendef" | "let" | "futurelet" | "read" | "font" | "nullfont" | "setbox" | "toksdef" | "toks") =>
+      case SkipdefToken(_) =>
+        true
+      case Primitive("count" | "dimen" | "advance" | "multiply" | "divide" | "chardef" | "mathchardef" | "countdef" | "dimendef" | "let" | "futurelet" | "read" | "font" | "nullfont" | "setbox" | "toksdef" | "toks" | "glue") =>
         true
       case Primitives.Font("textfont" | "scriptfont" | "scriptscriptfont") =>
         true
@@ -195,14 +197,14 @@ trait TeXAssignments {
           () <- swallow
           () <- equals
           i <- number
-        } yield IntegerParameterAssignment(name, i, AssignmentMode.Set, global)
+        } yield IntegerParameterAssignment(name, SetOp(i), global)
 
       case CountdefToken(cnt) =>
         for {
           () <- swallow
           () <- equals
           i <- number
-        } yield CounterAssignment(cnt, i, AssignmentMode.Set, global)
+        } yield CounterAssignment(cnt, SetOp(i), global)
 
       case tok @ ControlSequenceToken("count", _) =>
         for {
@@ -210,7 +212,7 @@ trait TeXAssignments {
           cnt <- bit8(tok.pos)
           () <- equals
           i <- number
-        } yield CounterAssignment(cnt, i, AssignmentMode.Set, global)
+        } yield CounterAssignment(cnt, SetOp(i), global)
 
       case tok @ ControlSequenceToken("dimen", _) =>
         for {
@@ -218,21 +220,43 @@ trait TeXAssignments {
           dim <- bit8(tok.pos)
           () <- equals
           d <- dimen
-        } yield DimensionAssignment(dim, d.sps, AssignmentMode.Set, global)
+        } yield DimensionAssignment(dim, SetOp(d), global)
 
       case Primitives.DimensionParameter(name) =>
         for {
           () <- swallow
           () <- equals
           d <- dimen
-        } yield DimensionParameterAssignment(name, d.sps, AssignmentMode.Set, global)
+        } yield DimensionParameterAssignment(name, SetOp(d), global)
 
       case DimendefToken(dim) =>
         for {
           () <- swallow
           () <- equals
           d <- dimen
-        } yield DimensionAssignment(dim, d.sps, AssignmentMode.Set, global)
+        } yield DimensionAssignment(dim, SetOp(d), global)
+
+      case tok @ ControlSequenceToken("skip", _) =>
+        for {
+          () <- swallow
+          gl <- bit8(tok.pos)
+          () <- equals
+          g <- glue
+        } yield GlueAssignment(gl, SetOp(g), global)
+
+      case Primitives.GlueParameter(name) =>
+        for {
+          () <- swallow
+          () <- equals
+          g <- glue
+        } yield GlueParameterAssignment(name, SetOp(g), global)
+
+      case SkipdefToken(gl) =>
+        for {
+          () <- swallow
+          () <- equals
+          g <- glue
+        } yield GlueAssignment(gl, SetOp(g), global)
 
       case Primitives.TokenParameter(name) =>
         for {
@@ -319,20 +343,20 @@ trait TeXAssignments {
       case ControlSequenceToken("advance", _) =>
         for {
           () <- swallow
-          adv <- arithmetic(AssignmentMode.Advance, global)
+          adv <- advance(global)
         } yield adv
 
       case ControlSequenceToken("multiply", _) =>
         for {
           () <- swallow
-          adv <- arithmetic(AssignmentMode.Multiply, global)
-        } yield adv
+          mul <- multiply(global)
+        } yield mul
 
       case ControlSequenceToken("divide", _) =>
         for {
           () <- swallow
-          adv <- arithmetic(AssignmentMode.Divide, global)
-        } yield adv
+          div <- divide(global)
+        } yield div
 
       // codenames
       case tok @ Primitives.Codename("catcode") =>
@@ -507,7 +531,7 @@ trait TeXAssignments {
       }
     } yield asgn
 
-  def arithmetic(mode: AssignmentMode, global: Boolean): Processor[Assignment] =
+  def advance(global: Boolean): Processor[Assignment] =
     for {
       t <- read
       asgn <- t match {
@@ -516,34 +540,198 @@ trait TeXAssignments {
             () <- swallow
             _ <- by
             i <- number
-          } yield IntegerParameterAssignment(name, i, mode, global)
+          } yield IntegerParameterAssignment(name, Advance(i), global)
         case tok @ CountdefToken(cnt) =>
           for {
             () <- swallow
             _ <- by
             i <- number
-          } yield CounterAssignment(cnt, i, mode, global)
+          } yield CounterAssignment(cnt, Advance(i), global)
         case tok @ ControlSequenceToken("count", _) =>
           for {
             () <- swallow
             cnt <- bit8(tok.pos)
             _ <- by
             i <- number
-          } yield CounterAssignment(cnt, i, mode, global)
+          } yield CounterAssignment(cnt, Advance(i), global)
 
+        case Primitives.DimensionParameter(name) =>
+          for {
+            () <- swallow
+            _ <- by
+            i <- dimen
+          } yield DimensionParameterAssignment(name, Advance(i), global)
         case tok @ DimendefToken(dim) =>
           for {
             () <- swallow
             _ <- by
-            i <- if (mode == AssignmentMode.Set) dimen.map(_.sps) else number
-          } yield DimensionAssignment(dim, i, mode, global)
+            i <- dimen
+          } yield DimensionAssignment(dim, Advance(i), global)
         case tok @ ControlSequenceToken("dimen", _) =>
           for {
             () <- swallow
             dim <- bit8(tok.pos)
             _ <- by
-            i <- if (mode == AssignmentMode.Set) dimen.map(_.sps) else number
-          } yield DimensionAssignment(dim, i, mode, global)
+            i <- dimen
+          } yield DimensionAssignment(dim, Advance(i), global)
+
+        case Primitives.GlueParameter(name) =>
+          for {
+            () <- swallow
+            _ <- by
+            i <- glue
+          } yield GlueParameterAssignment(name, Advance(i), global)
+        case tok @ SkipdefToken(gl) =>
+          for {
+            () <- swallow
+            _ <- by
+            i <- glue
+          } yield GlueAssignment(gl, Advance(i), global)
+        case tok @ ControlSequenceToken("skip", _) =>
+          for {
+            () <- swallow
+            gl <- bit8(tok.pos)
+            _ <- by
+            i <- glue
+          } yield GlueAssignment(gl, Advance(i), global)
+
+        case tok =>
+          throwError[Token](new TeXMouthException("variable expected", tok.pos))
+      }
+    } yield asgn
+
+  def multiply(global: Boolean): Processor[Assignment] =
+    for {
+      t <- read
+      asgn <- t match {
+        case Primitives.IntegerParameter(name) =>
+          for {
+            () <- swallow
+            _ <- by
+            i <- number
+          } yield IntegerParameterAssignment(name, Multiply(i), global)
+        case tok @ CountdefToken(cnt) =>
+          for {
+            () <- swallow
+            _ <- by
+            i <- number
+          } yield CounterAssignment(cnt, Multiply(i), global)
+        case tok @ ControlSequenceToken("count", _) =>
+          for {
+            () <- swallow
+            cnt <- bit8(tok.pos)
+            _ <- by
+            i <- number
+          } yield CounterAssignment(cnt, Multiply(i), global)
+
+        case Primitives.DimensionParameter(name) =>
+          for {
+            () <- swallow
+            _ <- by
+            i <- number
+          } yield DimensionParameterAssignment(name, Multiply(i), global)
+        case tok @ DimendefToken(dim) =>
+          for {
+            () <- swallow
+            _ <- by
+            i <- number
+          } yield DimensionAssignment(dim, Multiply(i), global)
+        case tok @ ControlSequenceToken("dimen", _) =>
+          for {
+            () <- swallow
+            dim <- bit8(tok.pos)
+            _ <- by
+            i <- number
+          } yield DimensionAssignment(dim, Multiply(i), global)
+
+        case Primitives.GlueParameter(name) =>
+          for {
+            () <- swallow
+            _ <- by
+            i <- number
+          } yield GlueParameterAssignment(name, Multiply(i), global)
+        case tok @ SkipdefToken(gl) =>
+          for {
+            () <- swallow
+            _ <- by
+            i <- number
+          } yield GlueAssignment(gl, Multiply(i), global)
+        case tok @ ControlSequenceToken("skip", _) =>
+          for {
+            () <- swallow
+            gl <- bit8(tok.pos)
+            _ <- by
+            i <- number
+          } yield GlueAssignment(gl, Multiply(i), global)
+
+        case tok =>
+          throwError[Token](new TeXMouthException("variable expected", tok.pos))
+      }
+    } yield asgn
+
+  def divide(global: Boolean): Processor[Assignment] =
+    for {
+      t <- read
+      asgn <- t match {
+        case Primitives.IntegerParameter(name) =>
+          for {
+            () <- swallow
+            _ <- by
+            i <- number
+          } yield IntegerParameterAssignment(name, Divide(i), global)
+        case tok @ CountdefToken(cnt) =>
+          for {
+            () <- swallow
+            _ <- by
+            i <- number
+          } yield CounterAssignment(cnt, Divide(i), global)
+        case tok @ ControlSequenceToken("count", _) =>
+          for {
+            () <- swallow
+            cnt <- bit8(tok.pos)
+            _ <- by
+            i <- number
+          } yield CounterAssignment(cnt, Divide(i), global)
+
+        case Primitives.DimensionParameter(name) =>
+          for {
+            () <- swallow
+            _ <- by
+            i <- number
+          } yield DimensionParameterAssignment(name, Divide(i), global)
+        case tok @ DimendefToken(dim) =>
+          for {
+            () <- swallow
+            _ <- by
+            i <- number
+          } yield DimensionAssignment(dim, Divide(i), global)
+        case tok @ ControlSequenceToken("dimen", _) =>
+          for {
+            () <- swallow
+            dim <- bit8(tok.pos)
+            _ <- by
+            i <- number
+          } yield DimensionAssignment(dim, Divide(i), global)
+
+        case Primitives.GlueParameter(name) =>
+          for {
+            () <- swallow
+            _ <- by
+            i <- number
+          } yield GlueParameterAssignment(name, Divide(i), global)
+        case tok @ SkipdefToken(gl) =>
+          for {
+            () <- swallow
+            _ <- by
+            i <- number
+          } yield GlueAssignment(gl, Divide(i), global)
+        case tok @ ControlSequenceToken("skip", _) =>
+          for {
+            () <- swallow
+            gl <- bit8(tok.pos)
+            _ <- by
+            i <- number
+          } yield GlueAssignment(gl, Divide(i), global)
 
         case tok =>
           throwError[Token](new TeXMouthException("variable expected", tok.pos))
@@ -695,6 +883,17 @@ trait TeXAssignments {
         env.css(name) match {
           case Some(TeXTokenList(_, number)) => Some(number)
           case _                             => None
+        }
+      case _ => None
+    }
+  }
+
+  object SkipdefToken {
+    def unapply(token: Token): Option[Byte] = token match {
+      case ControlSequenceToken(name, _) =>
+        env.css(name) match {
+          case Some(TeXGlue(_, number)) => Some(number)
+          case _                        => None
         }
       case _ => None
     }

@@ -74,7 +74,7 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
     val controlSequences = Map.empty[String, ControlSequence]
 
     // the names of all control sequences up to the root
-    def allConreolSequences: Set[String] = parent.map(_.allConreolSequences).getOrElse(Set.empty[String]) ++ controlSequences.keySet
+    def allControlSequences: Set[String] = parent.map(_.allControlSequences).getOrElse(Set.empty[String]) ++ controlSequences.keySet
 
     // local values of the different registers
     val counters = Map.empty[Byte, Int]
@@ -491,7 +491,7 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
 
     /** Returns the name of all control sequences defined in the current context. */
     def names: Set[String] =
-      locals.allConreolSequences
+      locals.allControlSequences
 
   }
 
@@ -514,13 +514,13 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
     def update(number: Byte, value: Int) =
       locals.counters(number) = value
 
-    def update(number: Byte, mode: AssignmentMode, global: Boolean, value: Int): Unit = {
+    def update(number: Byte, global: Boolean, op: AssignmentOp[Int]): Unit = {
       val cnts = if (global) root.counters else locals.counters
-      mode match {
-        case AssignmentMode.Set      => cnts(number) = value
-        case AssignmentMode.Advance  => cnts(number) = cnts.getOrElse(number, 0) + value
-        case AssignmentMode.Multiply => cnts(number) = cnts.getOrElse(number, 0) * value
-        case AssignmentMode.Divide   => cnts(number) = cnts.getOrElse(number, 0) / value
+      op match {
+        case SetOp(value) => cnts(number) = value
+        case Advance(by)  => cnts(number) = cnts.getOrElse(number, 0) + by
+        case Multiply(by) => cnts(number) = cnts.getOrElse(number, 0) * by
+        case Divide(by)   => cnts(number) = cnts.getOrElse(number, 0) / by
       }
     }
 
@@ -545,13 +545,13 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
     def update(name: String, value: Int) =
       locals.integerParameters(name) = value
 
-    def update(name: String, mode: AssignmentMode, global: Boolean, value: Int): Unit = {
+    def update(name: String, global: Boolean, op: AssignmentOp[Int]): Unit = {
       val params = if (global) root.integerParameters else locals.integerParameters
-      mode match {
-        case AssignmentMode.Set      => params(name) = value
-        case AssignmentMode.Advance  => params(name) = params.getOrElse(name, 0) + value
-        case AssignmentMode.Multiply => params(name) = params.getOrElse(name, 0) * value
-        case AssignmentMode.Divide   => params(name) = params.getOrElse(name, 0) / value
+      op match {
+        case SetOp(value) => params(name) = value
+        case Advance(by)  => params(name) = params.getOrElse(name, 0) + by
+        case Multiply(by) => params(name) = params.getOrElse(name, 0) * by
+        case Divide(by)   => params(name) = params.getOrElse(name, 0) / by
       }
     }
   }
@@ -575,13 +575,13 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
     def update(number: Byte, value: Dimension) =
       locals.dimensions(number) = value
 
-    def update(number: Byte, mode: AssignmentMode, global: Boolean, value: Int): Unit = {
+    def update(number: Byte, global: Boolean, op: AssignmentOp[Dimension]): Unit = {
       val dims = if (global) root.dimensions else locals.dimensions
-      mode match {
-        case AssignmentMode.Set      => dims(number) = Dimension(value)
-        case AssignmentMode.Advance  => dims(number) = dims.getOrElse(number, ZeroDimen) + value
-        case AssignmentMode.Multiply => dims(number) = dims.getOrElse(number, ZeroDimen) * value
-        case AssignmentMode.Divide   => dims(number) = dims.getOrElse(number, ZeroDimen) / value
+      op match {
+        case SetOp(value) => dims(number) = value
+        case Advance(by)  => dims(number) = dims.getOrElse(number, ZeroDimen) + by
+        case Multiply(by) => dims(number) = dims.getOrElse(number, ZeroDimen) * by
+        case Divide(by)   => dims(number) = dims.getOrElse(number, ZeroDimen) / by
       }
     }
   }
@@ -605,13 +605,13 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
     def update(name: String, value: Dimension) =
       locals.dimensionParameters(name) = value
 
-    def update(name: String, mode: AssignmentMode, global: Boolean, value: Int): Unit = {
+    def update(name: String, global: Boolean, op: AssignmentOp[Dimension]): Unit = {
       val params = if (global) root.dimensionParameters else locals.dimensionParameters
-      mode match {
-        case AssignmentMode.Set      => params(name) = Dimension(value)
-        case AssignmentMode.Advance  => params(name) = params.getOrElse(name, ZeroDimen) + value
-        case AssignmentMode.Multiply => params(name) = params.getOrElse(name, ZeroDimen) * value
-        case AssignmentMode.Divide   => params(name) = params.getOrElse(name, ZeroDimen) / value
+      op match {
+        case SetOp(value) => params(name) = value
+        case Advance(by)  => params(name) = params.getOrElse(name, ZeroDimen) + by
+        case Multiply(by) => params(name) = params.getOrElse(name, ZeroDimen) * by
+        case Divide(by)   => params(name) = params.getOrElse(name, ZeroDimen) / by
       }
     }
   }
@@ -635,9 +635,14 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
     def update(number: Byte, value: Glue): Unit =
       locals.glues(number) = value
 
-    def update(number: Byte, global: Boolean, value: Glue): Unit = {
+    def update(number: Byte, global: Boolean, op: AssignmentOp[Glue]): Unit = {
       val glues = if (global) root.glues else locals.glues
-      glues(number) = value
+      op match {
+        case SetOp(value) => glues(number) = value
+        case Advance(by)  => glues(number) = glues.getOrElse(number, ZeroGlue) + by
+        case Multiply(by) => glues(number) = glues.getOrElse(number, ZeroGlue) * by
+        case Divide(by)   => glues(number) = glues.getOrElse(number, ZeroGlue) / by
+      }
     }
   }
 
@@ -660,9 +665,14 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
     def update(name: String, value: Glue) =
       locals.glueParameters(name) = value
 
-    def update(name: String, global: Boolean, value: Glue): Unit = {
+    def update(name: String, global: Boolean, op: AssignmentOp[Glue]): Unit = {
       val params = if (global) root.glueParameters else locals.glueParameters
-      params(name) = value
+      op match {
+        case SetOp(value) => params(name) = value
+        case Advance(by)  => params(name) = params.getOrElse(name, ZeroGlue) + by
+        case Multiply(by) => params(name) = params.getOrElse(name, ZeroGlue) * by
+        case Divide(by)   => params(name) = params.getOrElse(name, ZeroGlue) / by
+      }
     }
   }
 

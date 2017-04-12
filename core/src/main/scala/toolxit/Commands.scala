@@ -16,11 +16,10 @@
 package toolxit
 
 import dimen._
+import glue._
 import font._
 import box._
 import util._
-
-import enumeratum._
 
 /** A TeX command returned by the parser.
  *  The calling context may decide to interpret as it wishes the commands.
@@ -68,26 +67,29 @@ object Assignment {
     }
 }
 
-sealed trait AssignmentMode extends EnumEntry
-object AssignmentMode extends Enum[AssignmentMode] {
-  val values = findValues
-  case object Set extends AssignmentMode
-  case object Advance extends AssignmentMode
-  case object Multiply extends AssignmentMode
-  case object Divide extends AssignmentMode
-}
+sealed trait AssignmentOp[+T]
+case class SetOp[T](value: T) extends AssignmentOp[T]
+case class Advance[T](by: T) extends AssignmentOp[T]
+case class Multiply(by: Int) extends AssignmentOp[Nothing]
+case class Divide(by: Int) extends AssignmentOp[Nothing]
 
 /** An integer parameter assignment command. */
-case class IntegerParameterAssignment(name: String, value: Int, mode: AssignmentMode, global: Boolean) extends Assignment
+case class IntegerParameterAssignment(name: String, op: AssignmentOp[Int], global: Boolean) extends Assignment
 
 /** A counter assignment command. */
-case class CounterAssignment(id: Byte, value: Int, mode: AssignmentMode, global: Boolean) extends Assignment
+case class CounterAssignment(id: Byte, op: AssignmentOp[Int], global: Boolean) extends Assignment
 
-/** A dimension assignment command (in sp). */
-case class DimensionAssignment(id: Byte, value: Int, mode: AssignmentMode, global: Boolean) extends Assignment
+/** A dimension assignment command. */
+case class DimensionAssignment(id: Byte, op: AssignmentOp[Dimension], global: Boolean) extends Assignment
 
-/** A dimension parameter assignment command (in sp). */
-case class DimensionParameterAssignment(name: String, value: Int, mode: AssignmentMode, global: Boolean) extends Assignment
+/** A dimension parameter assignment command. */
+case class DimensionParameterAssignment(name: String, op: AssignmentOp[Dimension], global: Boolean) extends Assignment
+
+/** A glue assignment command. */
+case class GlueAssignment(id: Byte, op: AssignmentOp[Glue], global: Boolean) extends Assignment
+
+/** A glue parameter assignment command. */
+case class GlueParameterAssignment(name: String, op: AssignmentOp[Glue], global: Boolean) extends Assignment
 
 /** A token list assignment command. */
 case class TokensAssignment(id: Byte, value: List[Token], global: Boolean) extends Assignment

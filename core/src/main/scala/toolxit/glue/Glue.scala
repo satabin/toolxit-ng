@@ -28,6 +28,14 @@ case class Glue(value: Dimension,
   def +(that: Glue): Glue =
     Glue(this.value + that.value, this.stretch + that.stretch, this.shrink + that.shrink)
 
+  @inline
+  def *(that: Int): Glue =
+    Glue(this.value * that, stretch, shrink)
+
+  @inline
+  def /(that: Int): Glue =
+    Glue(this.value / that, stretch, shrink)
+
 }
 
 /** Special glue, which is zero */

@@ -211,7 +211,7 @@ trait TeXDimensions {
       md <- t match {
         case StartsNormalMudimen() => normalMudimen
       }
-    } yield ???
+    } yield md
 
   // extractors
 

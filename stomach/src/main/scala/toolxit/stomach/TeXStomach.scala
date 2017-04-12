@@ -52,16 +52,20 @@ class TeXStomach(env: TeXEnvironment, out: PrintWriter, terminal: PrintWriter) e
   }
 
   def assign(assignment: Assignment): Unit = assignment match {
-    case CounterAssignment(cnt, v, mode, global) =>
-      env.count(cnt, mode, global) = v
-    case DimensionAssignment(dim, v, mode, global) =>
-      env.dimen(dim, mode, global) = v
+    case CounterAssignment(cnt, v, global) =>
+      env.count(cnt, global) = v
+    case DimensionAssignment(dim, v, global) =>
+      env.dimen(dim, global) = v
+    case GlueAssignment(gl, v, global) =>
+      env.skip(gl, global) = v
     case TokensAssignment(toks, v, global) =>
       env.toks(toks, global) = v
-    case IntegerParameterAssignment(name, v, mode, global) =>
-      env.integerParameter(name, mode, global) = v
-    case DimensionParameterAssignment(name, v, mode, global) =>
-      env.dimensionParameter(name, mode, global) = v
+    case IntegerParameterAssignment(name, v, global) =>
+      env.integerParameter(name, global) = v
+    case DimensionParameterAssignment(name, v, global) =>
+      env.dimensionParameter(name, global) = v
+    case GlueParameterAssignment(name, v, global) =>
+      env.glueParameter(name, global) = v
     case TokensParameterAssignment(name, v, global) =>
       env.tokenParameter(name, global) = v
     case CategoryAssignment(char, cat, global) =>
