@@ -144,6 +144,12 @@ case class TfmFontMetrics(checkSum: Int,
     else
       copy(designSize = dim)
 
+  def apply(param: Int) =
+    if (param == 1)
+      slantPerPoint
+    else
+      params.applyOrElse(param - 1, (_: Int) => 0d) * designSize
+
   def updated(param: Int, value: Dimension): FontMetrics =
     if (param == 1) {
       if (value == slantPerPoint)

@@ -122,4 +122,7 @@ trait FontMetrics {
    */
   def updated(param: Int, value: Dimension): FontMetrics
 
+  /** Queries the given parameter number. */
+  def apply(param: Int): Dimension
+
 }

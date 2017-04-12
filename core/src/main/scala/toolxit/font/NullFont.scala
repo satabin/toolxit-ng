@@ -53,6 +53,7 @@ case object NullFont extends FontMetrics {
   val xHeight: Dimension = ZeroDimen
 
   def updated(param: Int, value: Dimension): FontMetrics = this
+  def apply(param: Int) = ZeroDimen
 
   def at(dim: Dimension): FontMetrics = this
 

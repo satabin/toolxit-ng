@@ -39,8 +39,19 @@ trait TeXDimensions {
           for (glu <- internalGlue)
             yield (d: Double) => d * glu.value
         case _ =>
-          // TODO add font handling first so that font  parameters are taken into account here
-          ???
+          for {
+            u <- emx
+            _ <- optSpace
+          } yield env.font() match {
+            case Some((fn, mag)) =>
+              val metrics = env.fontManager.font(fn, mag).get
+              u match {
+                case "em" => (d: Double) => d * metrics.quadWidth
+                case "ex" => (d: Double) => d * metrics.xHeight
+              }
+            case None =>
+              (_: Double) => ZeroDimen
+          }
       }
     } yield u
   }
@@ -128,8 +139,11 @@ trait TeXDimensions {
           for {
             () <- swallow
             d <- number
-            f <- font
-          } yield ???
+            (fn, mag) <- font
+          } yield {
+            val metrics = env.fontManager.font(fn, mag).get
+            metrics(d)
+          }
 
         case Primitives.InternalDimension(name) =>
           for (() <- swallow)
