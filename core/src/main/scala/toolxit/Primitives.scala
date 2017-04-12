@@ -343,6 +343,17 @@ object Primitives {
     }
   }
 
+  val internalGlue = Set(
+    "lastskip",
+    "skip")
+
+  object InternalGlue {
+    def unapply(token: Token): Option[String] = token match {
+      case ControlSequenceToken(name, _) if internalGlue.contains(name) => Some(name)
+      case _ => None
+    }
+  }
+
   val font = Set(
     "font",
     "nullfont",
@@ -424,6 +435,7 @@ object Primitives {
       codename ++
       specialDimension ++
       internalDimension ++
+      internalGlue ++
       font ++
       hyphenation ++
       interactionMode ++

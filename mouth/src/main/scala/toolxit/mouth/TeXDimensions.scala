@@ -184,9 +184,9 @@ trait TeXDimensions {
       sign <- signs()
       t <- read
       d <- t match {
-        case StartsNormalDimen() => normalDimen
-        // TODO add support for coerced dimensions
-        case _                   => throwError[Token](new TeXMouthException(f"Dimension expected but got $t", t.pos))
+        case StartsNormalDimen()  => normalDimen
+        case StartsInternalGlue() => internalGlue.map(_.value)
+        case _                    => throwError[Token](new TeXMouthException(f"Dimension expected but got $t", t.pos))
       }
     } yield sign * d
 
@@ -248,6 +248,15 @@ trait TeXDimensions {
         case ControlSequenceToken(DimenDef(_), _) => true
         case _                                    => false
       }
+  }
+
+  object StartsFactor {
+    def unapply(token: Token): Boolean = token match {
+      case StartsInternalInteger() => true
+      case CharacterToken('.' | ',', Category.OTHER_CHARACTER) => true
+      case CharacterToken(c, Category.OTHER_CHARACTER) => c.isDigit
+      case _ => false
+    }
   }
 
   object DimenDef {

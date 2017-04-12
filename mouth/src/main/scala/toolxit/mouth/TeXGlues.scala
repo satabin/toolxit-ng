@@ -16,12 +16,29 @@
 package toolxit
 package mouth
 
+import util._
 import glue._
 
 trait TeXGlues {
   this: TeXMouth =>
 
-  lazy val internalGlue: Processor[Glue] = ???
+  val internalGlue: Processor[Glue] =
+    read.flatMap {
+      case ControlSequenceToken(SkipDef(name), _) =>
+        for (() <- swallow)
+          yield env.skip(name)
+      case Primitives.GlueParameter(p) =>
+        for (() <- swallow)
+          yield env.glueParameter(p)
+      case Primitives.InternalGlue("lastskip") =>
+        for (() <- swallow)
+          yield env.glues("lastskip")
+      case t @ Primitives.InternalGlue("skip") =>
+        for {
+          () <- swallow
+          b <- bit8(t.pos)
+        } yield env.skip(b)
+    }
 
   lazy val internalMuglue: Processor[Muglue] = ???
 
@@ -32,15 +49,57 @@ trait TeXGlues {
     for {
       () <- spaces
       p <- plus
-      s <- if (p) ??? else done(ZeroAmount)
+      s <- if (p) amount else done(ZeroAmount)
     } yield s
 
   val shrink: Processor[Amount] =
     for {
       () <- spaces
       m <- minus
-      s <- if (m) ??? else done(ZeroAmount)
+      s <- if (m) amount else done(ZeroAmount)
     } yield s
+
+  val amount: Processor[Amount] =
+    for {
+      sign <- signs()
+      t <- read
+      a <- t match {
+        case StartsFactor() =>
+          for {
+            f <- factor
+            () <- spaces
+            t <- read
+            a <- t match {
+              case CharacterToken('f' | 'F', _) => filUnit.map(FillAmount(sign * f, _))
+              case _                            => unitOfMeasure.map(toDim => DimenAmount(toDim(sign * f)))
+            }
+          } yield a
+        case _ => dimen.map(d => DimenAmount(sign * d))
+      }
+    } yield a
+
+  val filUnit: Processor[Int] =
+    for {
+      _ <- keyword("fil", false)
+      lvl <- ls(1)
+    } yield lvl
+
+  def ls(lvl: Int): Processor[Int] =
+    for {
+      t <- read
+      i <- t match {
+        case CharacterToken('l' | 'L', _) =>
+          if (lvl < 3)
+            for {
+              () <- swallow
+              i <- ls(lvl + 1)
+            } yield i
+          else
+            throwError[Token](new TeXMouthException("", t.pos))
+        case _ =>
+          done(lvl)
+      }
+    } yield i
 
   val glue: Processor[Glue] =
     for {
@@ -55,18 +114,29 @@ trait TeXGlues {
             sh <- shrink
           } yield Glue(sign * va, st, sh)
       }
-    } yield ???
+    } yield g
 
   // extractors
 
   object StartsInternalGlue {
-    def unapply(token: Token): Boolean =
-      false
+    def unapply(token: Token): Boolean = token match {
+      case ControlSequenceToken(SkipDef(_), _) => true
+      case Primitives.GlueParameter(_)         => true
+      case Primitives.InternalGlue(_)          => true
+      case _                                   => false
+    }
   }
 
   object StartsInternalMuglue {
     def unapply(token: Token): Boolean =
       false
+  }
+
+  object SkipDef {
+    def unapply(name: String): Option[Byte] = env.css(name) match {
+      case Some(TeXGlue(_, num)) => Some(num)
+      case _                     => None
+    }
   }
 
 }

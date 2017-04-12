@@ -899,6 +899,12 @@ class TeXEnvironment private (val ini: Boolean, val jobname: String, finders: Li
    */
   val dimensions = Map.empty[String, Dimension]
 
+  /** The special glues.
+   *
+   *  @group Globals
+   */
+  val glues = Map.empty[String, Glue]
+
   /** The ht dimensions.
    *
    *  @group Globals

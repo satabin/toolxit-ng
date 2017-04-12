@@ -285,7 +285,7 @@ trait TeXNumbers {
       i <- t match {
         case StartsNormalInteger() => normalInteger
         case StartsInternalDimen() => internalDimension.map(_.sps)
-        // TODO add support for coerced integers
+        case StartsInternalGlue()  => internalGlue.map(_.value.sps)
         case _                     => throwError[Token](new TeXMouthException(f"Number expected but got $t", t.pos))
       }
     } yield sign * i
