@@ -48,7 +48,7 @@ class FontManager(finders: List[FontFinder]) {
   private val skewchars = Map.empty[String, Char]
 
   /** Finds the font, loading it if necessary, and scaling it. */
-  def font(name: String, magnification: Option[Either[Dimension, Double]]): Try[FontMetrics] = Try {
+  def font(name: String, magnification: Magnification): Try[FontMetrics] = Try {
     val font = loaded.getOrElseUpdate(name, load(name))
     magnification match {
       case Some(Left(dim)) =>
@@ -67,7 +67,7 @@ class FontManager(finders: List[FontFinder]) {
   }
 
   /** Builds and returns the display name for the given magnified font. */
-  def fontname(name: String, magnification: Option[Either[Dimension, Double]]): Try[String] = Try {
+  def fontname(name: String, magnification: Magnification): Try[String] = Try {
     val font = loaded.getOrElseUpdate(name, load(name))
     magnification match {
       case Some(Left(dim)) =>
@@ -86,7 +86,7 @@ class FontManager(finders: List[FontFinder]) {
   }
 
   /** Updates the given font parameter with the provided value. */
-  def update(name: String, magnification: Option[Either[Dimension, Double]], parameter: Int, value: Dimension): Try[Unit] =
+  def update(name: String, magnification: Magnification, parameter: Int, value: Dimension): Try[Unit] =
     for {
       f <- font(name, magnification)
       n <- fontname(name, magnification)
@@ -99,13 +99,13 @@ class FontManager(finders: List[FontFinder]) {
     }
 
   object hyphenchar {
-    def apply(name: String, magnification: Option[Either[Dimension, Double]]): Option[Char] =
+    def apply(name: String, magnification: Magnification): Option[Char] =
       fontname(name, magnification) match {
         case Success(name) => hyphenchars.get(name)
         case Failure(t)    => throw t
       }
 
-    def update(name: String, magnification: Option[Either[Dimension, Double]], char: Char): Unit =
+    def update(name: String, magnification: Magnification, char: Char): Unit =
       fontname(name, magnification) match {
         case Success(name) => hyphenchars(name) = char
         case Failure(t)    => throw t
@@ -113,13 +113,13 @@ class FontManager(finders: List[FontFinder]) {
   }
 
   object skewchar {
-    def apply(name: String, magnification: Option[Either[Dimension, Double]]): Option[Char] =
+    def apply(name: String, magnification: Magnification): Option[Char] =
       fontname(name, magnification) match {
         case Success(name) => skewchars.get(name)
         case Failure(t)    => throw t
       }
 
-    def update(name: String, magnification: Option[Either[Dimension, Double]], char: Char): Unit =
+    def update(name: String, magnification: Magnification, char: Char): Unit =
       fontname(name, magnification) match {
         case Success(name) => skewchars(name) = char
         case Failure(t)    => throw t
