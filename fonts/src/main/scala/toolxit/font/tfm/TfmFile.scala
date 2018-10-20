@@ -31,14 +31,16 @@ object Tag extends ByteEnum[Tag] {
   case object ExtTag extends Tag(3)
 }
 
-case class CharInfoWord(widthIndex: Int,
-  heightIndex: Int,
-  depthIndex: Int,
-  italicIndex: Int,
-  tag: Tag,
-  remainder: Int)
+case class CharInfoWord(
+    widthIndex: Int,
+    heightIndex: Int,
+    depthIndex: Int,
+    italicIndex: Int,
+    tag: Tag,
+    remainder: Int)
 
-case class TfmFontMetrics(checkSum: Int,
+case class TfmFontMetrics(
+    checkSum: Int,
     designSize: Dimension,
     codingScheme: Option[String],
     fontIdentifier: Option[String],

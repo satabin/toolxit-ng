@@ -1,35 +1,33 @@
 import sbt._
 import Keys._
 
-import com.typesafe.sbt.SbtScalariform._
 import scalariform.formatter.preferences._
-
-import sbtunidoc.Plugin._
 
 lazy val globalSettings = scalariform ++ Seq(
   organization := "toolxit",
   version := "0.1.0-SNAPSHOT",
   resolvers += "Sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/",
-  scalaVersion := "2.12.1",
+  scalaVersion := "2.12.7",
   scalacOptions ++= Seq("-deprecation", "-feature"),
-  libraryDependencies += "com.lihaoyi" %% "sourcecode" % "0.1.3",
-  libraryDependencies += "com.beachape" %% "enumeratum" % "1.5.10")
+  libraryDependencies += "com.lihaoyi" %% "sourcecode" % "0.1.5",
+  libraryDependencies += "com.beachape" %% "enumeratum" % "1.5.13")
 
 lazy val toolxit = project.in(file("."))
+  .enablePlugins(ScalaUnidocPlugin)
   .settings(
     name := "toolxit")
-  .settings(unidocSettings: _*)
   .settings(
     scalacOptions in (Compile, doc) ++= Seq("-doc-root-content", "rootdoc.txt", "-groups"))
   .settings(globalSettings: _*)
   .aggregate(core, fonts, math, eyes, mouth, stomach, xonsole)
 
-lazy val scalariform = scalariformSettings ++ Seq(
-  ScalariformKeys.preferences :=
-    ScalariformKeys.preferences.value
+lazy val scalariform = Seq(
+  scalariformAutoformat := true,
+  scalariformPreferences :=
+    scalariformPreferences.value
       .setPreference(AlignSingleLineCaseStatements, true)
-      .setPreference(DoubleIndentClassDeclaration, true)
-      .setPreference(PreserveDanglingCloseParenthesis, true)
+      .setPreference(DoubleIndentConstructorArguments, true)
+      .setPreference(DanglingCloseParenthesis, Preserve)
       .setPreference(MultilineScaladocCommentsStartOnFirstLine, true))
 
 lazy val core = project.in(file("core"))
@@ -72,5 +70,5 @@ lazy val xonsole = project.in(file("xonsole"))
   .settings(globalSettings: _*)
   .settings(
     name := "xonsole",
-    libraryDependencies += "org.jline" % "jline" % "3.2.0")
+    libraryDependencies += "org.jline" % "jline" % "3.9.0")
   .dependsOn(stomach, fonts)

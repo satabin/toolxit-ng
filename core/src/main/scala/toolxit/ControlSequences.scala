@@ -22,23 +22,29 @@ sealed trait ControlSequence {
   val name: String
 }
 
-final case class TeXChar(name: String,
-  char: CharacterToken) extends ControlSequence
+final case class TeXChar(
+    name: String,
+    char: CharacterToken) extends ControlSequence
 
-final case class TeXCounter(name: String,
-  number: Byte) extends ControlSequence
+final case class TeXCounter(
+    name: String,
+    number: Byte) extends ControlSequence
 
-final case class TeXMathChar(name: String,
-  code: Int) extends ControlSequence
+final case class TeXMathChar(
+    name: String,
+    code: Int) extends ControlSequence
 
-final case class TeXDimension(name: String,
-  number: Byte) extends ControlSequence
+final case class TeXDimension(
+    name: String,
+    number: Byte) extends ControlSequence
 
-final case class TeXGlue(name: String,
-  number: Byte) extends ControlSequence
+final case class TeXGlue(
+    name: String,
+    number: Byte) extends ControlSequence
 
-final case class TeXMuglue(name: String,
-  number: Byte) extends ControlSequence
+final case class TeXMuglue(
+    name: String,
+    number: Byte) extends ControlSequence
 
 /** This control sequence represents a macro with a parameter sequence and a replacement text.
  *  It is expected for the replacement text to be a list of the body tokens in reverse order.
@@ -46,21 +52,26 @@ final case class TeXMuglue(name: String,
  *  pushed back onto a stack, and that the efficient implementation pushes a sequence in
  *  its order, so that the last elements of the sequence will be the on top of the stack
  */
-final case class TeXMacro(name: String,
-  parameters: List[Token],
-  replacement: List[Token],
-  long: Boolean,
-  outer: Boolean) extends ControlSequence
+final case class TeXMacro(
+    name: String,
+    parameters: List[Token],
+    replacement: List[Token],
+    long: Boolean,
+    outer: Boolean) extends ControlSequence
 
-final case class TeXCsAlias(name: String,
-  tokens: Token) extends ControlSequence
+final case class TeXCsAlias(
+    name: String,
+    tokens: Token) extends ControlSequence
 
-final case class TeXCharAlias(name: String,
-  replacement: CharacterToken) extends ControlSequence
+final case class TeXCharAlias(
+    name: String,
+    replacement: CharacterToken) extends ControlSequence
 
-final case class TeXTokenList(name: String,
-  number: Byte) extends ControlSequence
+final case class TeXTokenList(
+    name: String,
+    number: Byte) extends ControlSequence
 
-final case class TeXFont(name: String,
-  fname: String,
-  magnification: Option[Either[Dimension, Double]]) extends ControlSequence
+final case class TeXFont(
+    name: String,
+    fname: String,
+    magnification: Option[Either[Dimension, Double]]) extends ControlSequence

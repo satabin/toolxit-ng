@@ -1,3 +1,3 @@
-addSbtPlugin("com.typesafe.sbt" % "sbt-scalariform" % "1.3.0")
+addSbtPlugin("org.scalariform" % "sbt-scalariform" % "1.8.2")
 
-addSbtPlugin("com.eed3si9n" % "sbt-unidoc" % "0.2.0")
+addSbtPlugin("com.eed3si9n" % "sbt-unidoc" % "0.4.2")

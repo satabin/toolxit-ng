@@ -21,7 +21,8 @@ import dimen._
 /** @author Lucas Satabin
  *
  */
-case class Glue(value: Dimension,
+case class Glue(
+    value: Dimension,
     stretch: Amount,
     shrink: Amount) {
 
@@ -59,9 +60,10 @@ case class DimenAmount(d: Dimension) extends Amount
 case class FillAmount(factor: Double, level: Int) extends Amount
 object ZeroAmount extends DimenAmount(ZeroDimen)
 
-case class Muglue(value: Int,
-  stretch: Int = 0,
-  shrink: Int = 0)
+case class Muglue(
+    value: Int,
+    stretch: Int = 0,
+    shrink: Int = 0)
 
 /** Special muglue, which is zero */
 object ZeroMuglue extends Muglue(0)

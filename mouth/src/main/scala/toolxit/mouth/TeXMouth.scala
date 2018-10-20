@@ -50,14 +50,14 @@ import java.io.{
  *  @author Lucas Satabin
  */
 class TeXMouth(val env: TeXEnvironment)
-    extends Iteratees[Token]
-    with TeXMacros
-    with TeXNumbers
-    with TeXDimensions
-    with TeXGlues
-    with TeXFonts
-    with TeXTokens
-    with TeXAssignments {
+  extends Iteratees[Token]
+  with TeXMacros
+  with TeXNumbers
+  with TeXDimensions
+  with TeXGlues
+  with TeXFonts
+  with TeXTokens
+  with TeXAssignments {
 
   def accept(token: Token): Processor[Unit] =
     read.flatMap { t =>
@@ -421,7 +421,8 @@ class TeXMouth(val env: TeXEnvironment)
         }
     }
 
-  def modifiers(long: Boolean = false,
+  def modifiers(
+    long: Boolean = false,
     outer: Boolean = false,
     global: Boolean = false): Processor[(Boolean, Boolean, Boolean)] = read.flatMap {
     case ControlSequenceToken("long", _) =>
